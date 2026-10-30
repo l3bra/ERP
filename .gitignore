@@ -1,0 +1,18 @@
+# Local inventory data and source spreadsheets
+backend/warehouse.db
+backend/warehouse.db-*
+*.db
+*.sqlite
+*.sqlite3
+*.xlsx
+
+# Virtual environments, Python caches, and local secrets
+backend/venv/
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+
+# Unrelated local file
+/kazino.jpg

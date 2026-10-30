@@ -1,0 +1,1358 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Склад</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @page { size: A4 portrait; margin: 5mm; }
+  :root {
+    --c0: rgba(255, 99, 132, .36);
+    --c1: rgba(255, 159, 64, .36);
+    --c2: rgba(255, 205, 86, .40);
+    --c3: rgba(75, 192, 120, .34);
+    --c4: rgba(54, 162, 235, .34);
+    --c5: rgba(153, 102, 255, .32);
+    --c6: rgba(255, 105, 180, .32);
+    --c7: rgba(0, 188, 212, .32);
+    --c8: rgba(139, 195, 74, .36);
+    --c9: rgba(160, 160, 160, .34);
+  }
+  body { font-family: system-ui, sans-serif; max-width: 1500px; margin: 16px auto; padding: 0 16px; color: #222; text-align: center; }
+  nav button, .sub button { padding: 6px 14px; margin-right: 4px; cursor: pointer; border: 1px solid #999; background: #fff; }
+  nav { display: flex; justify-content: center; gap: 4px; }
+  nav button.active { background: #222; color: #fff; }
+  .sub { margin: 10px 0; }
+  .sub button.active { background: #4a7; color: #fff; border-color: #4a7; }
+  table { border-collapse: collapse; margin: 10px auto; max-width: 100%; }
+  th, td { border: 1px solid #bbb; padding: 4px 7px; text-align: left; }
+  th { background: #f0f0f0; }
+  td.num { text-align: right; }
+  input, select { padding: 3px; font: inherit; box-sizing: border-box; }
+  input.s { width: 62px; }
+  input.m { width: 110px; }
+  input.l { width: 170px; }
+  input.saved, select.saved { background: #e6f6e6; }
+  .row-div td { background: #d9ead3; text-align: center; font-weight: bold; }
+  .row-div.inv td { background: #fcf8ca; }
+  .row-div input { width: 100%; text-align: center; font-weight: bold; background: transparent; border: none; }
+  .err { color: #b00; margin: 8px 0; min-height: 1em; }
+  .bar { margin: 8px 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: center; }
+  .hint { color: #777; font-size: 13px; display: block; text-align: center; }
+  .hidden { display: none; }
+  .cols { display: flex; gap: 8mm; align-items: flex-start; justify-content: center; }
+  .cols > div { flex: 1; min-width: 0; }
+  .cols table { width: 100%; page-break-inside: avoid; font-size: 10pt; }
+  .cols th { text-align: left; }
+  #print-head { margin: 6px 0; font-size: 11pt; }
+  .note-cell { display: flex; gap: 4px; align-items: center; }
+  .note-cell input { min-width: 80px; width: 100%; }
+  .note-link { overflow-wrap: anywhere; }
+  .fact-cell { width: 13mm; }
+  .fact-entry { min-height: 6mm; }
+  dialog { width: min(420px, calc(100vw - 40px)); border: 1px solid #999; border-radius: 8px; padding: 18px; }
+  dialog::backdrop { background: rgba(0, 0, 0, .35); }
+  .link-form { display: grid; gap: 10px; text-align: left; }
+  .link-form label { display: grid; gap: 4px; }
+  .link-form input { width: 100%; }
+  .link-error { color: #b00; min-height: 1.2em; }
+  .line-start td { border-top: 8px solid #fff; }
+  .quick.q1 { background: var(--c2); }
+  .quick.q6 { background: var(--c7); }
+  .quick.q9 { background: var(--c1); }
+  .quick.q12 { background: var(--c5); }
+  .palette { display: flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .swatch { width: 25px; height: 25px; border: 2px solid #888; border-radius: 4px; cursor: pointer; }
+  .swatch.selected { outline: 2px solid #222; outline-offset: 1px; }
+  .resize-col { position: absolute; z-index: 2; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; touch-action: none; }
+  .resize-row { position: absolute; z-index: 2; left: 0; right: 0; bottom: -3px; height: 7px; cursor: row-resize; touch-action: none; }
+  table[data-resizable] th, table[data-resizable] td { position: relative; }
+  .line-settings { margin: 10px auto; }
+  .line-setting { display: inline-flex; gap: 8px; align-items: center; margin: 4px; }
+  .line-chip { display: inline-block; padding: 2px 8px; border: 1px solid #aaa; border-radius: 4px; }
+  .paint-enabled { background: #fff4d6; padding: 5px 8px; border-radius: 4px; }
+  .table-wrap { max-width: 100%; overflow-x: auto; }
+  .drag-handle { cursor: grab; padding: 2px 6px; touch-action: none; }
+  .dragging { opacity: .4; }
+  tr.drop-target-before td { box-shadow: inset 0 3px #2878c8; }
+  tr.drop-target-after td { box-shadow: inset 0 -3px #2878c8; }
+  .drag-handle { user-select: none; }
+  body {
+    --page-bg: #f2f3f6;
+    --surface: #fff;
+    --surface-soft: #f8f9fb;
+    --text: #152238;
+    --muted: #748096;
+    --line: #e2e6ed;
+    --accent: #ef302d;
+    --accent-contrast: #fff;
+    --control-bg: #fff;
+    --table-head: #f8f9fb;
+    --table-row: #fff;
+    --table-alt: #fafbfc;
+    --shadow: 0 8px 24px rgba(28, 38, 56, .08);
+    --radius: 14px;
+    background: var(--page-bg);
+    color: var(--text);
+    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    max-width: 1500px;
+    margin: 0 auto 20px;
+    padding: 0 18px;
+    text-align: center;
+    transition: background-color .25s, color .25s;
+  }
+  [hidden] { display: none !important; }
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    padding: 28px 0 6px;
+    background: var(--page-bg);
+    backdrop-filter: blur(12px);
+  }
+  .app-title-row {
+    position: relative;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .app-title-row h2 { flex: 1; }
+  .settings-trigger {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
+    border-radius: 50%;
+    color: var(--muted);
+    font-size: 23px;
+    line-height: 1;
+  }
+  .settings-trigger[aria-expanded="true"] { color: var(--accent); }
+  .settings-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 30;
+    display: grid;
+    gap: 8px;
+    box-sizing: border-box;
+    width: min(350px, calc(100vw - 24px));
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .settings-popover .theme-switcher,
+  .settings-popover #paint-tools {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 7px;
+    margin: 0;
+    padding: 6px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+  }
+  .settings-popover .theme-option {
+    width: 40px;
+    height: 38px;
+    min-height: 38px;
+    padding: 3px;
+    border-radius: 8px;
+  }
+  .settings-popover .theme-preview { width: 28px; height: 26px; }
+  .settings-popover .paint-enabled { padding: 5px 7px; }
+  .settings-popover #paint-mode { min-width: 90px; }
+  .settings-popover #palette { gap: 3px; }
+  .settings-popover .swatch { width: 20px; height: 20px; border-width: 1px; }
+  .settings-popover #paint-tools > button { padding: 5px 8px; }
+  body[data-theme="dark-lab"] {
+    --page-bg: #0e1012;
+    --surface: #171a1f;
+    --surface-soft: #1d2127;
+    --text: #f1f3f7;
+    --muted: #8d96a5;
+    --line: #292f38;
+    --accent: #ff493f;
+    --accent-contrast: #fff;
+    --control-bg: #101317;
+    --table-head: #1a1e24;
+    --table-row: #14171b;
+    --table-alt: #191d22;
+    --shadow: 0 12px 30px rgba(0, 0, 0, .28);
+    --radius: 12px;
+    color-scheme: dark;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  body[data-theme="resin-glass"] {
+    --page-bg: linear-gradient(125deg, #d6dcff 0%, #f8e9ff 48%, #d9f6f7 100%);
+    --surface: rgba(255, 255, 255, .64);
+    --surface-soft: rgba(255, 255, 255, .48);
+    --text: #20234c;
+    --muted: #71789d;
+    --line: rgba(137, 143, 205, .18);
+    --accent: #7658f6;
+    --accent-contrast: #fff;
+    --control-bg: rgba(255, 255, 255, .72);
+    --table-head: rgba(255, 255, 255, .74);
+    --table-row: rgba(255, 255, 255, .42);
+    --table-alt: rgba(255, 255, 255, .52);
+    --shadow: 0 16px 38px rgba(94, 91, 174, .14);
+    --radius: 20px;
+    background: var(--page-bg);
+    background-attachment: fixed;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  body[data-theme="swiss-technical"] {
+    --page-bg: #f6f5f0;
+    --surface: #fff;
+    --surface-soft: #f5f4ef;
+    --text: #111;
+    --muted: #62615d;
+    --line: #c9c8c1;
+    --accent: #ed302d;
+    --accent-contrast: #fff;
+    --control-bg: #fff;
+    --table-head: #111;
+    --table-row: #fff;
+    --table-alt: #f7f6f1;
+    --shadow: 4px 4px 0 rgba(17, 17, 17, .92);
+    --radius: 0px;
+    font-family: "Segoe UI", Arial, sans-serif;
+  }
+  body h2 {
+    margin: 10px 0 12px;
+    color: var(--text);
+    font-size: clamp(26px, 3vw, 36px);
+    font-weight: 800;
+    letter-spacing: -.04em;
+    text-align: left;
+  }
+  body .bar {
+    margin: 12px 0;
+    padding: 12px 16px;
+    gap: 8px;
+    justify-content: flex-start;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    transition: background-color .25s, border-color .25s, box-shadow .25s;
+  }
+  body #paint-tools {
+    justify-content: flex-start;
+    min-height: 48px;
+  }
+  body nav {
+    justify-content: flex-start;
+    gap: 4px;
+    margin: 16px 0;
+    padding: 5px;
+    width: fit-content;
+    max-width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface-soft);
+  }
+  body nav button,
+  body .sub button {
+    margin: 0;
+    padding: 10px 20px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 700;
+    transition: background .18s, color .18s, transform .18s, box-shadow .18s;
+  }
+  body nav button:hover,
+  body .sub button:hover { color: var(--text); transform: translateY(-1px); }
+  body nav button.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 2px 8px rgba(20, 30, 50, .1);
+  }
+  body .sub { margin: 12px 0; }
+  body .sub button.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-contrast);
+  }
+  body button,
+  body input,
+  body select,
+  body textarea {
+    font: inherit;
+  }
+  body button {
+    min-height: 36px;
+    padding: 7px 12px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--control-bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: background .18s, border-color .18s, color .18s, box-shadow .18s, transform .18s;
+  }
+  body button:hover { border-color: var(--accent); }
+  body button:active { transform: translateY(1px); }
+  body input,
+  body select {
+    min-height: 36px;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--control-bg);
+    color: var(--text);
+    accent-color: var(--accent);
+  }
+  body input::placeholder { color: var(--muted); opacity: .8; }
+  body input:focus,
+  body select:focus,
+  body button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    outline-offset: 1px;
+  }
+  body button[onclick^="add"],
+  body button[onclick^="save"],
+  body #link-form button[type="submit"] {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font-weight: 750;
+  }
+  body .hint { color: var(--muted); font-size: 14px; }
+  body .err { color: #d82929; }
+  body .paint-enabled { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+  body #items-table table,
+  body #logs-table table,
+  body #print table {
+    width: 100%;
+    margin: 12px auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    transition: background-color .25s, border-color .25s;
+  }
+  body #items-table th,
+  body #logs-table th,
+  body #print th {
+    padding: 12px 10px;
+    border-color: var(--line);
+    background: var(--table-head);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  body #items-table td,
+  body #logs-table td,
+  body #print td {
+    padding: 9px 10px;
+    border-color: var(--line);
+    background-color: var(--table-row);
+    color: var(--text);
+  }
+  body #items-table tr:nth-child(even) td,
+  body #logs-table tr:nth-child(even) td,
+  body #print tr:nth-child(even) td { background-color: var(--table-alt); }
+  body #items-table tr.line-start td { border-top: 9px solid var(--page-bg); }
+  body .row-div td { background: color-mix(in srgb, #4a7 18%, var(--surface)); }
+  body .row-div.inv td { background: color-mix(in srgb, #f3c638 22%, var(--surface)); }
+  body .row-div input { color: inherit; }
+  body .line-chip { border-color: var(--line); }
+  body .line-settings {
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    color: var(--text);
+  }
+  body .line-settings summary { color: var(--muted); cursor: pointer; }
+  body .resize-col { background: transparent; }
+  body .drag-handle { color: var(--muted); }
+  body .dragging { opacity: .45; }
+  body tr.drop-target-before td { box-shadow: inset 0 3px var(--accent); }
+  body tr.drop-target-after td { box-shadow: inset 0 -3px var(--accent); }
+  body #link-dialog {
+    border-color: var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+  body #link-dialog input { width: 100%; }
+  body #link-dialog .bar { box-shadow: none; }
+  .theme-switcher {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .theme-option {
+    display: inline-grid;
+    align-items: center;
+    justify-items: center;
+    width: 48px;
+    height: 44px;
+    min-height: 44px;
+    padding: 5px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    text-align: center;
+  }
+  .theme-option[aria-pressed="true"] {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .theme-preview {
+    display: block;
+    width: 32px;
+    height: 30px;
+    border: 1px solid rgba(30, 40, 60, .18);
+    border-radius: 6px;
+    background: linear-gradient(to bottom, #f7f8fa 0 34%, #fff 34% 100%);
+    box-shadow: inset 0 -7px #e9edf2;
+  }
+  .theme-preview.dark { background: linear-gradient(to bottom, #222832 0 34%, #111419 34% 100%); box-shadow: inset 0 -7px #292f38; }
+  .theme-preview.glass { background: linear-gradient(135deg, #b8c5ff, #fff0ff 55%, #c2f0f3); box-shadow: inset 0 -7px rgba(255,255,255,.7); }
+  .theme-preview.swiss { border-radius: 1px; background: linear-gradient(to bottom, #111 0 34%, #fff 34% 100%); box-shadow: inset 0 -7px #ed302d; }
+
+  body[data-theme="clean-light"] nav { background: #e7e9ed; border-color: transparent; border-radius: 15px; }
+  body[data-theme="clean-light"] nav button.active { border-radius: 12px; }
+  body[data-theme="clean-light"] #items-table table,
+  body[data-theme="clean-light"] #logs-table table { box-shadow: 0 8px 22px rgba(31, 41, 55, .07); }
+
+  body[data-theme="dark-lab"] {
+    background-image: radial-gradient(ellipse at 10% 0%, rgba(111, 32, 32, .13), transparent 34%);
+  }
+  body[data-theme="dark-lab"] nav { border-width: 0 0 1px; border-radius: 0; background: transparent; }
+  body[data-theme="dark-lab"] nav button.active {
+    border-radius: 0;
+    background: transparent;
+    box-shadow: inset 0 -3px var(--accent);
+    color: #fff;
+  }
+  body[data-theme="dark-lab"] .theme-option[aria-pressed="true"] { box-shadow: 0 0 16px rgba(255, 73, 63, .18); }
+  body[data-theme="dark-lab"] .line-start td { border-top-color: #0e1012; }
+  body[data-theme="dark-lab"] .quick { color: #f4f5f7; }
+  body[data-theme="dark-lab"] .row-div td { color: var(--text); }
+
+  body[data-theme="resin-glass"] nav {
+    border: 1px solid rgba(255,255,255,.75);
+    border-radius: 999px;
+    background: rgba(255,255,255,.5);
+    backdrop-filter: blur(18px);
+  }
+  body[data-theme="resin-glass"] nav button.active {
+    border-radius: 999px;
+    background: linear-gradient(135deg, #725cf4, #9b57ec);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(116, 87, 238, .28);
+  }
+  body[data-theme="resin-glass"] .bar,
+  body[data-theme="resin-glass"] #paint-tools,
+  body[data-theme="resin-glass"] .theme-switcher,
+  body[data-theme="resin-glass"] #items-table table,
+  body[data-theme="resin-glass"] #logs-table table {
+    border-color: rgba(255,255,255,.72);
+    backdrop-filter: blur(18px);
+  }
+  body[data-theme="resin-glass"] #items-table table,
+  body[data-theme="resin-glass"] #logs-table table { box-shadow: 0 18px 42px rgba(93, 85, 172, .12); }
+  body[data-theme="resin-glass"] .bar button[onclick^="add"],
+  body[data-theme="resin-glass"] #link-form button[type="submit"] {
+    border-radius: 999px;
+    background: linear-gradient(135deg, #725cf4, #9b57ec);
+    box-shadow: 0 7px 16px rgba(116, 87, 238, .24);
+  }
+  body[data-theme="resin-glass"] .line-start td { border-top-color: rgba(255,255,255,.52); }
+  body[data-theme="resin-glass"] #items-table td,
+  body[data-theme="resin-glass"] #logs-table td { background-color: rgba(255,255,255,.42); }
+
+  body[data-theme="swiss-technical"] {
+    background-image: linear-gradient(rgba(18,18,18,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(18,18,18,.025) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  body[data-theme="swiss-technical"] h2 {
+    padding-bottom: 10px;
+    border-bottom: 3px solid #111;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  body[data-theme="swiss-technical"] nav {
+    gap: 0;
+    padding: 0;
+    border: 2px solid #111;
+    border-radius: 0;
+    background: #fff;
+  }
+  body[data-theme="swiss-technical"] nav button {
+    min-width: 112px;
+    border-right: 2px solid #111;
+    border-radius: 0;
+    color: #111;
+    font-family: ui-monospace, "Cascadia Mono", monospace;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  body[data-theme="swiss-technical"] nav button:last-child { border-right: 0; }
+  body[data-theme="swiss-technical"] nav button.active {
+    background: #111;
+    color: #fff;
+    box-shadow: inset 0 -4px var(--accent);
+  }
+  body[data-theme="swiss-technical"] .bar,
+  body[data-theme="swiss-technical"] #paint-tools,
+  body[data-theme="swiss-technical"] .theme-switcher,
+  body[data-theme="swiss-technical"] #items-table table,
+  body[data-theme="swiss-technical"] #logs-table table {
+    border: 1px solid #111;
+    box-shadow: 3px 3px 0 #111;
+  }
+  body[data-theme="swiss-technical"] button,
+  body[data-theme="swiss-technical"] input,
+  body[data-theme="swiss-technical"] select { border-radius: 0; }
+  body[data-theme="swiss-technical"] button[onclick^="add"],
+  body[data-theme="swiss-technical"] #link-form button[type="submit"] {
+    border: 2px solid #111;
+    box-shadow: 3px 3px 0 #111;
+    font-family: ui-monospace, "Cascadia Mono", monospace;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  body[data-theme="swiss-technical"] #items-table table,
+  body[data-theme="swiss-technical"] #logs-table table { border: 2px solid #111; }
+  body[data-theme="swiss-technical"] #items-table th,
+  body[data-theme="swiss-technical"] #logs-table th {
+    background: #111;
+    color: #fff;
+    font-family: ui-monospace, "Cascadia Mono", monospace;
+  }
+  body[data-theme="swiss-technical"] #items-table td,
+  body[data-theme="swiss-technical"] #logs-table td {
+    border-right: 1px solid #d5d3cc;
+    border-bottom: 1px solid #d5d3cc;
+  }
+  body[data-theme="swiss-technical"] .line-start td { border-top: 8px solid #f6f5f0; }
+  body[data-theme="swiss-technical"] .theme-option { border-radius: 0; }
+  @media (max-width: 720px) {
+    body { margin: 0 auto 12px; padding: 0 10px; }
+    .app-header { padding-top: 20px; }
+    body h2 { font-size: 25px; }
+    body .bar { padding: 10px; justify-content: center; }
+    body nav { width: 100%; }
+    body nav button { flex: 1; padding: 9px 8px; }
+    .settings-popover { width: min(360px, calc(100vw - 20px)); }
+    .settings-popover #paint-tools { flex-wrap: wrap; }
+    .theme-option { flex: 0 0 48px; }
+    body #items-table,
+    body #logs-table { overflow-x: auto; }
+  }
+  @media print {
+    html, body { height: auto; margin: 0 !important; padding: 0 !important; }
+    body { width: 200mm; max-width: none; text-align: left; }
+    body > * { display: none !important; }
+    #tab-print { display: block !important; width: 200mm; margin: 0 !important; }
+    #tab-print > .bar { display: none !important; }
+    #print-head { margin: 0 0 2mm; text-align: center; font-size: 8pt; }
+    #print.cols { display: grid; width: 200mm; box-sizing: border-box; grid-template-columns: 1fr 1fr; gap: 4mm; align-items: start; }
+    #print.cols > div { min-width: 0; }
+    #print .table-wrap { overflow: visible; }
+    #print table { width: 100%; margin: 0 0 1mm; table-layout: fixed; border-collapse: collapse; font-size: 7pt; line-height: 1.05; }
+    body #print table { margin: 0 0 1mm; border: 0; border-radius: 0; box-shadow: none; }
+    #print colgroup col { width: auto !important; }
+    #print colgroup col:last-child { width: 13mm !important; }
+    #print th, #print td { padding: .3mm 1mm; height: 4mm; }
+    #print th { font-size: 7pt; }
+    body #print th { padding: .3mm 1mm; height: 4mm; background: #f0f0f0; color: #222; font-size: 7pt; letter-spacing: normal; }
+    body #print td { padding: .3mm 1mm; height: 4mm; color: #222; }
+    body #print tr:nth-child(even) td { background-color: #fff; }
+    #print .fact-cell { width: 13mm; }
+    #print .fact-entry { min-height: 6mm; }
+    #print table, #print tr { break-inside: avoid; page-break-inside: avoid; }
+    #print .resize-col, #print .resize-row { display: none !important; }
+    dialog { display: none !important; }
+  }
+</style>
+</head>
+<body data-theme="clean-light">
+<header class="app-header no-print">
+  <div class="app-title-row">
+    <h2>Склад</h2>
+    <button id="settings-trigger" class="settings-trigger" type="button"
+      aria-label="Настройки оформления и раскраски" aria-expanded="false" aria-controls="settings-popover"
+      title="Оформление и раскраска">⌄</button>
+    <div id="settings-popover" class="settings-popover" hidden>
+      <div class="theme-switcher" role="group" aria-label="Выбор оформления">
+        <button type="button" class="theme-option" data-theme-choice="clean-light" aria-label="Светлый минимализм" aria-pressed="true" title="Светлый минимализм">
+          <span class="theme-preview" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="theme-option" data-theme-choice="dark-lab" aria-label="Тёмная лаборатория" aria-pressed="false" title="Тёмная лаборатория">
+          <span class="theme-preview dark" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="theme-option" data-theme-choice="resin-glass" aria-label="Стекло и градиент" aria-pressed="false" title="Стекло и градиент">
+          <span class="theme-preview glass" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="theme-option" data-theme-choice="swiss-technical" aria-label="Швейцарская техническая сетка" aria-pressed="false" title="Швейцарская техническая сетка">
+          <span class="theme-preview swiss" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="bar" id="paint-tools">
+        <label class="paint-enabled"><input id="paint-enabled" type="checkbox"> Раскраска</label>
+        <label>Применять к:
+          <select id="paint-mode">
+            <option value="cell">ячейке</option>
+            <option value="row">строке</option>
+            <option value="column">столбцу</option>
+          </select>
+        </label>
+        <div id="palette" class="palette" aria-label="Палитра цветов"></div>
+        <button onclick="clearPaint()">Очистить цвет</button>
+      </div>
+    </div>
+  </div>
+  <nav>
+    <button data-tab="base" class="active">База</button>
+    <button data-tab="journal">Журнал</button>
+    <button data-tab="print">Печать</button>
+  </nav>
+</header>
+<div class="bar no-print">API: <input id="api" class="l" value="http://127.0.0.1:8000">
+  <button onclick="reload()">Обновить</button></div>
+  <div id="err" class="err"></div>
+
+<!-- ===== БАЗА ===== -->
+<section id="tab-base">
+  <div class="bar">
+    <b>Новая партия:</b>
+    <select id="n-product" class="m"></select>
+    <input id="n-color" class="m" placeholder="Название">
+    <input id="n-batch" class="m" placeholder="Партия">
+    <input id="n-date" type="date">
+    <input id="n-qty" class="s" type="number" min="0" placeholder="Кол-во">
+    <button onclick="addItem()">Добавить</button>
+    <input id="filter" class="m" placeholder="Поиск…" oninput="applyFilter()">
+  </div>
+  <div class="bar">
+    <b>Добавить линейку:</b>
+    <input id="line-name" class="m" placeholder="Название">
+    <select id="line-color" aria-label="Цвет новой линейки"></select>
+    <button onclick="addLine()">Добавить</button>
+  </div>
+  <details class="line-settings no-print">
+    <summary>Линейки и их цвета</summary>
+    <div id="line-settings"></div>
+  </details>
+  <div class="hint">Все поля редактируются прямо в таблице, изменения сохраняются сразу и попадают в журнал.</div>
+  <div id="items-table" class="table-wrap"></div>
+</section>
+
+<!-- ===== ЖУРНАЛ ===== -->
+<section id="tab-journal" class="hidden">
+  <div class="bar">
+    <button onclick="divider('day')">Новый день</button>
+    <button onclick="divider('inventory')">Инвентаризация</button>
+    <span class="hint">Правка строк журнала меняет только запись, остатки в Базе не затрагиваются.</span>
+  </div>
+  <div class="sub" id="months"></div>
+  <div id="logs-table" class="table-wrap"></div>
+</section>
+
+<!-- ===== ПЕЧАТЬ ===== -->
+<section id="tab-print" class="hidden">
+  <div class="bar"><button onclick="window.print()">Печать (А4)</button></div>
+  <div id="print-head"></div>
+  <div class="cols" id="print"></div>
+</section>
+
+<dialog id="link-dialog">
+  <form id="link-form" class="link-form">
+    <strong>Добавить ссылку</strong>
+    <label>Текст ссылки<input id="link-label" required maxlength="200" placeholder="Например, карточка товара"></label>
+    <label>Адрес<input id="link-url" type="text" inputmode="url" autocomplete="url" required placeholder="https://example.com"></label>
+    <div id="link-error" class="link-error" role="alert"></div>
+    <div class="bar">
+      <button type="submit">Сохранить</button>
+      <button type="button" onclick="$('link-dialog').close()">Отмена</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+const base = () => $('api').value.replace(/\/$/, '');
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const DEFAULT_TYPES = ['ПРИХОД','РАСХОД','НОВАЯ ПАРТИЯ','КОРРЕКЦИЯ','ПРАВКА','УДАЛЕНИЕ'];
+const COLORS = [
+  {name:'Коралловый', css:'var(--c0)'}, {name:'Оранжевый', css:'var(--c1)'},
+  {name:'Жёлтый', css:'var(--c2)'}, {name:'Зелёный', css:'var(--c3)'},
+  {name:'Голубой', css:'var(--c4)'}, {name:'Фиолетовый', css:'var(--c5)'},
+  {name:'Розовый', css:'var(--c6)'}, {name:'Бирюзовый', css:'var(--c7)'},
+  {name:'Салатовый', css:'var(--c8)'}, {name:'Серый', css:'var(--c9)'},
+];
+const THEMES = ['clean-light', 'dark-lab', 'resin-glass', 'swiss-technical'];
+let tab = 'base', month = null, logTypes = DEFAULT_TYPES;
+let lines = [], savedStyles = [], selectedColor = 0;
+const LINK_NOTE_PREFIX = '[[ERP_LINK_V1]]';
+let editingLinkLogId = null;
+const styleKey = (table, kind, row, column) => JSON.stringify([table, kind, row, column]);
+
+function setTheme(theme, persist = true) {
+  if (!THEMES.includes(theme)) return;
+  document.body.dataset.theme = theme;
+  document.querySelectorAll('[data-theme-choice]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.themeChoice === theme));
+  });
+  if (persist) {
+    try { localStorage.setItem('warehouse-theme', theme); }
+    catch (error) { console.warn('Не удалось сохранить выбранный дизайн.', error); }
+  }
+}
+
+function initThemeSwitcher() {
+  let theme = 'clean-light';
+  try {
+    const stored = localStorage.getItem('warehouse-theme');
+    if (THEMES.includes(stored)) theme = stored;
+  } catch (error) {
+    console.warn('Не удалось прочитать сохранённый дизайн.', error);
+  }
+  document.querySelectorAll('[data-theme-choice]').forEach(button => {
+    button.addEventListener('click', () => setTheme(button.dataset.themeChoice));
+  });
+  setTheme(theme, false);
+}
+
+function initSettingsPopover() {
+  const trigger = $('settings-trigger');
+  const popover = $('settings-popover');
+  const setOpen = open => {
+    popover.hidden = !open;
+    trigger.setAttribute('aria-expanded', String(open));
+  };
+  trigger.addEventListener('click', () => setOpen(popover.hidden));
+  document.addEventListener('click', event => {
+    if (!popover.hidden && !popover.contains(event.target) && !trigger.contains(event.target)) {
+      setOpen(false);
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !popover.hidden) {
+      setOpen(false);
+      trigger.focus();
+    }
+  });
+}
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtDate = d => d ? d.split('-').reverse().join('.') : '';
+const fmtTs = ts => { const [d, t] = ts.split('T'); return fmtDate(d) + ' ' + t; };
+const monthLabel = m => { const [y, mm] = m.split('-'); return MONTHS[+mm - 1] + ' ' + y; };
+const currentMonth = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+
+async function api(path, method = 'GET', body) {
+  $('err').textContent = '';
+  try {
+    const r = await fetch(base() + path, {
+      method,
+      headers: body ? {'Content-Type': 'application/json'} : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(typeof j.detail === 'string' ? j.detail : (j.detail ? JSON.stringify(j.detail) : r.statusText));
+    }
+    return await r.json();
+  } catch (e) { $('err').textContent = 'Ошибка: ' + e.message; throw e; }
+}
+
+// после неудачной правки: вернуть таблицу к данным сервера, но оставить текст ошибки
+async function revert(reloadFn) {
+  const msg = $('err').textContent;
+  await reloadFn();
+  $('err').textContent = msg;
+}
+function flash(el) { el.classList.add('saved'); setTimeout(() => el.classList.remove('saved'), 700); }
+
+function colorValue(index) {
+  return getComputedStyle(document.documentElement).getPropertyValue(`--c${index}`).trim();
+}
+
+function initPalette() {
+  $('palette').innerHTML = COLORS.map((c, i) =>
+    `<button type="button" class="swatch${i === selectedColor ? ' selected' : ''}" ` +
+    `style="background:${c.css}" title="${c.name}" aria-label="${c.name}" onclick="selectPaintColor(${i})"></button>`
+  ).join('');
+  $('line-color').innerHTML = COLORS.map((c, i) =>
+    `<option value="${i}">${c.name}</option>`
+  ).join('');
+}
+
+function selectPaintColor(index) {
+  selectedColor = index;
+  document.querySelectorAll('#palette .swatch').forEach((button, i) =>
+    button.classList.toggle('selected', i === index));
+}
+
+function getStyle(table, kind, row, column) {
+  return savedStyles.find(s => s.table === table && s.kind === kind &&
+    s.row === row && s.column === column);
+}
+
+function cellColor(table, row, column) {
+  const styles = [
+    getStyle(table, 'column', '*', column),
+    getStyle(table, 'row', row, '*'),
+    getStyle(table, 'cell', row, column),
+  ].filter(Boolean);
+  return styles.length ? colorValue(styles[styles.length - 1].color) : '';
+}
+
+function applyTableStyles(table) {
+  const tableName = table.dataset.styleTable;
+  table.querySelectorAll('tr').forEach((tr, rowIndex) => {
+    if (!tr.dataset.styleRow) tr.dataset.styleRow = `row-${rowIndex}`;
+    [...tr.cells].forEach((cell, columnIndex) => {
+      cell.dataset.styleCol = String(columnIndex);
+      cell.style.backgroundColor = cellColor(tableName, tr.dataset.styleRow, String(columnIndex));
+    });
+  });
+}
+
+function saveTableStyles() {
+  document.querySelectorAll('table[data-style-table]').forEach(applyTableStyles);
+}
+
+function paintRequest(table, kind, row, column, color) {
+  const target = {table, kind, row, column};
+  const existing = getStyle(table, kind, row, column);
+  if (color == null) {
+    if (!existing) return Promise.resolve();
+    return api('/styles', 'DELETE', target).then(() => {
+      savedStyles = savedStyles.filter(s => styleKey(s.table, s.kind, s.row, s.column) !==
+        styleKey(table, kind, row, column));
+      saveTableStyles();
+    });
+  }
+  return api('/styles', 'PUT', {...target, color}).then(saved => {
+    savedStyles = savedStyles.filter(s => styleKey(s.table, s.kind, s.row, s.column) !==
+      styleKey(table, kind, row, column));
+    savedStyles.push(saved);
+    saveTableStyles();
+  });
+}
+
+async function clearPaint() {
+  if (!$('paint-enabled').checked) return;
+  const cell = window.paintTarget;
+  if (!cell) return;
+  const table = cell.closest('table[data-style-table]');
+  const tr = cell.closest('tr');
+  if (!table || !tr) return;
+  const kind = $('paint-mode').value;
+  const row = kind === 'column' ? '*' : tr.dataset.styleRow;
+  const column = kind === 'row' ? '*' : cell.dataset.styleCol;
+  try { await paintRequest(table.dataset.styleTable, kind, row, column, null); }
+  catch {}
+}
+
+document.addEventListener('click', event => {
+  if (!$('paint-enabled').checked) return;
+  if (event.target.closest('button, input, select, textarea, a, .resize-col, .resize-row, .drag-handle')) return;
+  const cell = event.target.closest('td, th');
+  const table = cell && cell.closest('table[data-style-table]');
+  const tr = cell && cell.closest('tr');
+  if (!cell || !table || !tr || event.target.closest('.resize-col, .resize-row')) return;
+  event.preventDefault();
+  event.stopPropagation();
+  window.paintTarget = cell;
+  const kind = $('paint-mode').value;
+  const row = kind === 'column' ? '*' : tr.dataset.styleRow;
+  const column = kind === 'row' ? '*' : cell.dataset.styleCol;
+  paintRequest(table.dataset.styleTable, kind, row, column, selectedColor).catch(() => {});
+}, true);
+
+function resizeStorageKey(tableId, kind, key) {
+  return `warehouse-size:${tableId}:${kind}:${key}`;
+}
+
+function setupResizableTables() {
+  document.querySelectorAll('table[data-resize-id]').forEach(table => {
+    const tableId = table.dataset.resizeId;
+    table.dataset.resizable = 'true';
+    const rows = [...table.rows];
+    if (!rows.length) return;
+    const columnCount = Math.max(...rows.map(row => row.cells.length));
+    let colgroup = table.querySelector('colgroup');
+    if (!colgroup) {
+      colgroup = document.createElement('colgroup');
+      table.insertBefore(colgroup, table.firstChild);
+    }
+    while (colgroup.children.length < columnCount) colgroup.appendChild(document.createElement('col'));
+    [...colgroup.children].forEach((col, index) => {
+      const saved = localStorage.getItem(resizeStorageKey(tableId, 'column', index));
+      if (saved) col.style.width = `${Number(saved)}px`;
+    });
+
+    rows.forEach((row, rowIndex) => {
+      const rowKey = row.dataset.styleRow || String(rowIndex);
+      const savedHeight = localStorage.getItem(resizeStorageKey(tableId, 'row', rowKey));
+      if (savedHeight) row.style.height = `${Number(savedHeight)}px`;
+      const lastCell = row.cells[row.cells.length - 1];
+      if (lastCell) {
+        const rowHandle = document.createElement('span');
+        rowHandle.className = 'resize-row';
+        rowHandle.title = 'Изменить высоту строки';
+        rowHandle.addEventListener('pointerdown', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          const startY = event.clientY, startHeight = row.getBoundingClientRect().height;
+          const move = e => {
+            const height = Math.max(24, startHeight + e.clientY - startY);
+            row.style.height = `${height}px`;
+          };
+          const end = () => {
+            document.removeEventListener('pointermove', move);
+            document.removeEventListener('pointerup', end);
+            localStorage.setItem(resizeStorageKey(tableId, 'row', rowKey), row.offsetHeight);
+          };
+          document.addEventListener('pointermove', move);
+          document.addEventListener('pointerup', end);
+        });
+        lastCell.appendChild(rowHandle);
+      }
+    });
+
+    Array.from(rows[0].cells).forEach((cell, index) => {
+      const handle = document.createElement('span');
+      handle.className = 'resize-col';
+      handle.title = 'Изменить ширину столбца';
+      handle.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const startX = event.clientX;
+        const startWidth = colgroup.children[index].getBoundingClientRect().width;
+        const move = e => {
+          const width = Math.max(40, startWidth + e.clientX - startX);
+          colgroup.children[index].style.width = `${width}px`;
+        };
+        const end = () => {
+          document.removeEventListener('pointermove', move);
+          document.removeEventListener('pointerup', end);
+          localStorage.setItem(resizeStorageKey(tableId, 'column', index),
+            Math.round(colgroup.children[index].getBoundingClientRect().width));
+        };
+        document.addEventListener('pointermove', move);
+        document.addEventListener('pointerup', end);
+      });
+      cell.appendChild(handle);
+    });
+  });
+}
+
+function enhanceTables() {
+  saveTableStyles();
+  setupResizableTables();
+}
+
+let dragState = null;
+
+function clearDragState() {
+  document.removeEventListener('pointermove', moveDraggedRow);
+  document.removeEventListener('pointerup', finishDraggedRow);
+  document.removeEventListener('pointercancel', cancelDraggedRow);
+  document.querySelectorAll('#items-table .dragging, #items-table .drop-target-before, #items-table .drop-target-after')
+    .forEach(row => row.classList.remove('dragging', 'drop-target-before', 'drop-target-after'));
+  dragState = null;
+}
+
+function moveDraggedRow(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const target = document.elementFromPoint(event.clientX, event.clientY)
+    ?.closest('#items-table tr[data-row]');
+  document.querySelectorAll('#items-table .drop-target-before, #items-table .drop-target-after')
+    .forEach(row => row.classList.remove('drop-target-before', 'drop-target-after'));
+  if (!target || target === dragState.row ||
+      target.dataset.product !== dragState.row.dataset.product) {
+    dragState.target = null;
+    return;
+  }
+  dragState.target = target;
+  const rect = target.getBoundingClientRect();
+  dragState.insertAfter = event.clientY >= rect.top + rect.height / 2;
+  target.classList.add(dragState.insertAfter ? 'drop-target-after' : 'drop-target-before');
+}
+
+async function finishDraggedRow(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const state = dragState;
+  clearDragState();
+  if (!state.target) return;
+
+  const reordered = [...currentItems];
+  const from = reordered.findIndex(item => item.id === state.itemId);
+  const [moved] = reordered.splice(from, 1);
+  let to = reordered.findIndex(item => item.id === Number(state.target.dataset.row));
+  if (state.insertAfter) to += 1;
+  reordered.splice(to, 0, moved);
+  if (reordered.every((item, index) => item.id === currentItems[index].id)) return;
+
+  try {
+    await api('/items/order', 'PUT', {ids: reordered.map(item => item.id)});
+    currentItems = reordered;
+    renderItems(currentItems);
+  } catch { await revert(loadBase); }
+}
+
+function cancelDraggedRow(event) {
+  if (dragState && event.pointerId === dragState.pointerId) clearDragState();
+}
+
+document.addEventListener('pointerdown', event => {
+  const handle = event.target.closest('.drag-handle');
+  const row = handle && handle.closest('#items-table tr[data-row]');
+  if (!row || event.button !== 0) return;
+  event.preventDefault();
+  dragState = {
+    itemId: Number(row.dataset.row),
+    row,
+    pointerId: event.pointerId,
+    target: null,
+    insertAfter: false,
+  };
+  row.classList.add('dragging');
+  document.addEventListener('pointermove', moveDraggedRow);
+  document.addEventListener('pointerup', finishDraggedRow);
+  document.addEventListener('pointercancel', cancelDraggedRow);
+});
+
+async function addLine() {
+  const name = $('line-name').value.trim();
+  if (!name) return;
+  try {
+    await api('/lines', 'POST', {name, color: Number($('line-color').value)});
+    $('line-name').value = '';
+    await loadBase();
+  } catch {}
+}
+
+function parseLinkNote(note) {
+  if (!note || !note.startsWith(LINK_NOTE_PREFIX)) return null;
+  try {
+    const data = JSON.parse(note.slice(LINK_NOTE_PREFIX.length));
+    const url = new URL(data.url);
+    if (!data.label || !['http:', 'https:'].includes(url.protocol)) return null;
+    return {label: data.label, url: url.href};
+  } catch {
+    return null;
+  }
+}
+
+function renderNoteCell(log) {
+  const link = parseLinkNote(log.note);
+  const editor = link
+    ? `<a class="note-link" href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">${esc(link.label)}</a>`
+    : `<input class="l" value="${esc(log.note)}" onchange="updLog(${log.id},{note:this.value},this)">`;
+  return `<div class="note-cell">${editor}<button type="button" class="edit-link" data-link-log="${log.id}" title="Добавить или изменить ссылку" aria-label="Добавить или изменить ссылку">🔗</button></div>`;
+}
+
+function openLinkEditor(logId) {
+  const row = currentLogs.find(log => log.id === logId);
+  if (!row) return;
+  const link = parseLinkNote(row.note);
+  editingLinkLogId = logId;
+  $('link-label').value = link ? link.label : (row.note || '');
+  $('link-url').value = link ? link.url : '';
+  $('link-error').textContent = '';
+  $('link-dialog').showModal();
+  $('link-label').focus();
+}
+
+async function saveLink(event) {
+  event.preventDefault();
+  const label = $('link-label').value.trim();
+  let rawUrl = $('link-url').value.trim();
+  if (!label || !rawUrl) {
+    $('link-error').textContent = 'Заполните текст ссылки и адрес.';
+    return;
+  }
+  if (!/^[a-z][a-z\d+.-]*:/i.test(rawUrl)) rawUrl = 'https://' + rawUrl;
+  let url;
+  try {
+    url = new URL(rawUrl);
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported protocol');
+  } catch {
+    $('link-error').textContent = 'Введите корректный адрес сайта (http или https).';
+    return;
+  }
+  try {
+    await api('/logs/' + editingLinkLogId, 'PUT', {
+      note: LINK_NOTE_PREFIX + JSON.stringify({label, url: url.href}),
+    });
+    $('link-dialog').close();
+    await loadJournal(false);
+  } catch (error) {
+    $('link-error').textContent = error.message;
+  }
+}
+
+$('link-form').addEventListener('submit', saveLink);
+
+async function updateLineColor(name, color) {
+  try {
+    await api('/lines', 'PUT', {name, color: Number(color)});
+    lines = lines.map(line => line.name === name ? {...line, color: Number(color)} : line);
+    renderLineControls();
+    renderItems(currentItems);
+  } catch {}
+}
+
+async function deleteLine(name) {
+  try {
+    await api('/lines/' + encodeURIComponent(name), 'DELETE');
+    await loadBase();
+  } catch {}
+}
+
+let currentItems = [];
+let currentLogs = [];
+function lineOptions(selected = '') {
+  const isListed = lines.some(line => line.name === selected);
+  const preservedOption = selected && !isListed
+    ? `<option value="${esc(selected)}" selected>${esc(selected)} (вне списка)</option>`
+    : '';
+  const options = lines.map(line =>
+    `<option value="${esc(line.name)}" style="background:${COLORS[line.color].css}" ${line.name === selected ? 'selected' : ''}>${esc(line.name)}</option>`
+  ).join('');
+  return `<option value="" ${selected ? '' : 'selected'}>— без линейки —</option>${preservedOption}${options}`;
+}
+
+function renderLineControls() {
+  $('n-product').innerHTML = lineOptions();
+  const selectedLine = lines.find(line => line.name === $('n-product').value);
+  $('n-product').style.backgroundColor = selectedLine ? COLORS[selectedLine.color].css : '';
+  $('n-product').onchange = () => {
+    const line = lines.find(entry => entry.name === $('n-product').value);
+    $('n-product').style.backgroundColor = line ? COLORS[line.color].css : '';
+  };
+  $('line-settings').innerHTML = lines.map(line =>
+    `<label class="line-setting"><span class="line-chip" style="background:${COLORS[line.color].css}">${esc(line.name)}</span>` +
+    `<select aria-label="Цвет линейки ${esc(line.name)}" data-line-name="${esc(line.name)}" onchange="updateLineColor(this.dataset.lineName,this.value)">` +
+    COLORS.map((color, index) => `<option value="${index}" ${index === line.color ? 'selected' : ''}>${color.name}</option>`).join('') +
+    `</select><button type="button" data-delete-line="${esc(line.name)}">Удалить</button></label>`
+  ).join('');
+  $('line-settings').querySelectorAll('[data-delete-line]').forEach(button => {
+    button.addEventListener('click', () => deleteLine(button.dataset.deleteLine));
+  });
+}
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  tab = b.dataset.tab;
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x === b));
+  ['base', 'journal', 'print'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== tab));
+  if (tab === 'journal') month = currentMonth();
+  reload();
+});
+
+async function reload() {
+  if (tab === 'base') return loadBase();
+  if (tab === 'journal') return loadJournal(true);
+  if (tab === 'print') return loadPrint();
+}
+
+// ================= БАЗА =================
+async function loadBase() {
+  const [items, lineList] = await Promise.all([api('/items'), api('/lines')]);
+  currentItems = items;
+  lines = lineList;
+  renderLineControls();
+  renderItems(items);
+}
+
+function renderItems(items) {
+  let h = '<table data-style-table="items" data-resize-id="items">' +
+          '<tr data-style-row="header"><th>Линейка</th><th>Название</th><th>Партия</th><th>Дата</th><th>Кол-во</th>' +
+          '<th>Быстрый расход</th><th>Расход</th><th>Приход</th><th></th></tr>';
+  let previousLine = null;
+  for (const it of items) {
+    const f = (field, cls, type = 'text') =>
+      `<input data-f="${field}" class="${cls}" type="${type}" value="${esc(it[field])}" onchange="upd(${it.id},'${field}',this)">`;
+    const line = lines.find(entry => entry.name === it.product);
+    const lineColor = line ? COLORS[line.color].css : '';
+    const start = previousLine !== null && previousLine !== it.product;
+    h += `<tr data-row="${it.id}" data-style-row="${it.id}" data-product="${esc(it.product)}" class="${start ? 'line-start' : ''}">
+      <td><button type="button" class="drag-handle" title="Перетащить в пределах линейки" aria-label="Переместить строку">↕</button>
+      <select data-f="product" class="m" style="background:${lineColor}" onchange="upd(${it.id},'product',this)">${lineOptions(it.product)}</select></td>
+      <td>${f('color', 'm')}</td><td>${f('batch', 'm')}</td>
+      <td>${f('date', '', 'date')}</td>
+      <td><input data-f="qty" id="q${it.id}" class="s" type="number" min="0" value="${it.qty}" onchange="upd(${it.id},'qty',this)"></td>
+      <td>${[1, 6, 9, 12].map(n => `<button class="quick q${n}" onclick="quick(${it.id},${n},this)">-${n}</button>`).join(' ')}</td>
+      <td><input class="s" id="c${it.id}" type="number" min="1"> <button onclick="consume(${it.id})">−</button></td>
+      <td><input class="s" id="r${it.id}" type="number" min="1"> <button onclick="receive(${it.id})">+</button></td>
+      <td><button onclick="del(${it.id})" title="Удалить позицию">✕</button></td></tr>`;
+    previousLine = it.product;
+  }
+  $('items-table').innerHTML = h + '</table>';
+  applyFilter();
+  enhanceTables();
+}
+
+function applyFilter() {
+  const q = $('filter').value.toLowerCase();
+  document.querySelectorAll('#items-table tr[data-row]').forEach(tr => {
+    const t = [...tr.querySelectorAll('input[data-f],select[data-f]')].map(i => i.value).join(' ').toLowerCase();
+    tr.classList.toggle('hidden', !!q && !t.includes(q));
+  });
+}
+
+async function upd(id, field, el) {
+  const val = field === 'qty' ? (el.value === '' ? null : Number(el.value)) : el.value;
+  if (val === null) return revert(loadBase);
+  try {
+    const it = await api('/items/' + id, 'PUT', {[field]: val});
+    $('q' + id).value = it.qty;
+    if (field === 'product') await loadBase();
+    else flash(el);
+  } catch { revert(loadBase); }
+}
+async function addItem() {
+  try {
+    await api('/items', 'POST', {
+      product: $('n-product').value, color: $('n-color').value, batch: $('n-batch').value,
+      date: $('n-date').value || null, qty: Number($('n-qty').value) || 0 });
+    ['n-product', 'n-color', 'n-batch', 'n-qty'].forEach(i => $(i).value = '');
+    loadBase();
+  } catch {}
+}
+async function quick(id, n, button) {
+  button.disabled = true;
+  try {
+    const r = await api(`/items/${id}/quick/${n}`, 'POST');
+    const quantity = $('q' + id);
+    if (quantity) {
+      quantity.value = r.new_qty;
+      flash(quantity);
+    }
+    await loadBase();
+  } catch (error) {
+    $('err').textContent = 'Ошибка быстрого расхода: ' + error.message;
+  } finally {
+    if (button.isConnected) button.disabled = false;
+  }
+}
+async function consume(id) {
+  const v = Number($('c' + id).value); if (!(v > 0)) return;
+  try { const r = await api(`/items/${id}/consume`, 'POST', {amount: v}); $('q' + id).value = r.new_qty; $('c' + id).value = ''; flash($('q' + id)); } catch {}
+}
+async function receive(id) {
+  const v = Number($('r' + id).value); if (!(v > 0)) return;
+  try { const r = await api(`/items/${id}/receive`, 'POST', {amount: v}); $('q' + id).value = r.new_qty; $('r' + id).value = ''; flash($('q' + id)); } catch {}
+}
+async function del(id) { try { await api('/items/' + id, 'DELETE'); loadBase(); } catch {} }
+async function demo() { try { await api('/demo', 'POST'); loadBase(); } catch {} }
+
+// ================= ЖУРНАЛ =================
+async function loadJournal(scrollDown) {
+  try {
+    const meta = await api('/meta'); logTypes = meta.log_types;
+    const months = await api('/logs/months');
+    if (!month || !months.includes(month)) month = months.includes(currentMonth()) ? currentMonth() : months[months.length - 1];
+    $('months').innerHTML = months.map(m =>
+      `<button class="${m === month ? 'active' : ''}" onclick="pickMonth('${m}')">${monthLabel(m)}</button>`).join('');
+    renderLogs(await api('/logs?month=' + month));
+    if (scrollDown) window.scrollTo(0, document.body.scrollHeight);
+  } catch {}
+}
+function pickMonth(m) { month = m; loadJournal(true); }
+
+function renderLogs(logs) {
+  currentLogs = logs;
+  let h = '<table data-style-table="logs" data-resize-id="logs">' +
+    '<tr data-style-row="header"><th>Время</th><th>Линейка</th><th>Название</th><th>Партия</th><th>Было</th><th>Стало</th><th>Разница</th><th>Тип</th><th>Примечание</th><th></th></tr>';
+  if (!logs.length) h += '<tr data-style-row="empty"><td colspan="10" class="hint">В этом месяце записей нет</td></tr>';
+  for (const l of logs) {
+    if (l.kind === 'divider') {
+      h += `<tr data-style-row="${l.id}" class="row-div ${l.type === 'inventory' ? 'inv' : ''}"><td colspan="9">
+        <input value="${esc(l.note)}" onchange="updLog(${l.id},{note:this.value},this)"></td>
+        <td><button onclick="delLog(${l.id})">✕</button></td></tr>`;
+      continue;
+    }
+    const t = (field, cls) => `<input class="${cls}" value="${esc(l[field])}" onchange="updLog(${l.id},{${field}:this.value},this)">`;
+    const n = field => `<input class="s" type="number" value="${l[field] ?? ''}" onchange="updLog(${l.id},{${field}:Number(this.value)},this)">`;
+    const types = logTypes.includes(l.type) ? logTypes : [...logTypes, l.type];
+    h += `<tr data-style-row="${l.id}">
+      <td>${esc(fmtTs(l.ts))}</td><td>${t('product', 'm')}</td><td>${t('color', 'm')}</td><td>${t('batch', 'm')}</td>
+      <td>${n('old_qty')}</td><td>${n('new_qty')}</td>
+      <td class="num" id="d${l.id}">${l.diff > 0 ? '+' : ''}${l.diff}</td>
+      <td><select onchange="updLog(${l.id},{type:this.value},this)">${types.map(x => `<option ${x === l.type ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></td>
+      <td>${renderNoteCell(l)}</td>
+      <td><button onclick="delLog(${l.id})">✕</button></td></tr>`;
+  }
+  $('logs-table').innerHTML = h + '</table>';
+  $('logs-table').querySelectorAll('[data-link-log]').forEach(button => {
+    button.addEventListener('click', () => openLinkEditor(Number(button.dataset.linkLog)));
+  });
+  enhanceTables();
+}
+async function updLog(id, patch, el) {
+  try {
+    const r = await api('/logs/' + id, 'PUT', patch);
+    const d = $('d' + id); if (d && r.diff != null) d.textContent = (r.diff > 0 ? '+' : '') + r.diff;
+    flash(el);
+  } catch { revert(() => loadJournal(false)); }
+}
+async function delLog(id) { try { await api('/logs/' + id, 'DELETE'); loadJournal(false); } catch {} }
+async function divider(kind) {
+  try { await api('/logs/divider', 'POST', {kind}); month = currentMonth(); loadJournal(true); } catch {}
+}
+
+// ================= ПЕЧАТЬ =================
+async function loadPrint() {
+  const p = await api('/print');
+  const col = (list, side) => list.map(g => {
+    const groupKey = encodeURIComponent(g.product);
+    return `<table data-style-table="print" data-resize-id="print-${side}-${groupKey}">` +
+      `<tr data-style-row="group:${groupKey}"><th colspan="5">${esc(g.product)}</th></tr>` +
+      g.rows.map(r => {
+        const rowKey = encodeURIComponent([g.product, r.color, r.batch].join('|'));
+        return `<tr data-style-row="entry:${rowKey}"><td>${esc(r.color)}</td><td>${esc(r.batch)}</td><td>${fmtDate(r.date)}</td><td class="num">${r.qty}</td><td class="fact-cell"><div class="fact-entry"></div></td></tr>`;
+      }).join('') + '</table>';
+  }).join('');
+  $('print-head').textContent = 'Остатки на ' + fmtTs(p.generated);
+  $('print').innerHTML = `<div>${col(p.left, 'left')}</div><div>${col(p.right, 'right')}</div>`;
+  enhanceTables();
+}
+
+async function initialize() {
+  initSettingsPopover();
+  initThemeSwitcher();
+  initPalette();
+  try { savedStyles = await api('/styles'); }
+  catch {}
+  await reload();
+}
+
+initialize();
+</script>
+</body>
+</html>
