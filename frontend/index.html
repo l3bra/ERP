@@ -21,6 +21,7 @@
   body { font-family: system-ui, sans-serif; max-width: 1500px; margin: 16px auto; padding: 0 16px; color: #222; text-align: center; }
   nav button, .sub button { padding: 6px 14px; margin-right: 4px; cursor: pointer; border: 1px solid #999; background: #fff; }
   nav { display: flex; justify-content: center; gap: 4px; }
+  nav button[data-tab="settings"] { margin-left: auto; }
   nav button.active { background: #222; color: #fff; }
   .sub { margin: 10px 0; }
   .sub button.active { background: #4a7; color: #fff; border-color: #4a7; }
@@ -48,6 +49,12 @@
   .note-cell { display: flex; gap: 4px; align-items: center; }
   .note-cell input { min-width: 80px; width: 100%; }
   .note-link { overflow-wrap: anywhere; }
+  body #logs-table select.manager-error {
+    background: color-mix(in srgb, #f04444 24%, var(--control-bg));
+    border-color: #d64545;
+    color: var(--text);
+    font-weight: 700;
+  }
   .fact-cell { width: 13mm; }
   .fact-entry { min-height: 6mm; }
   dialog { width: min(420px, calc(100vw - 40px)); border: 1px solid #999; border-radius: 8px; padding: 18px; }
@@ -61,16 +68,47 @@
   .quick.q6 { background: var(--c7); }
   .quick.q9 { background: var(--c1); }
   .quick.q12 { background: var(--c5); }
-  .palette { display: flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: wrap; }
-  .swatch { width: 25px; height: 25px; border: 2px solid #888; border-radius: 4px; cursor: pointer; }
-  .swatch.selected { outline: 2px solid #222; outline-offset: 1px; }
   .resize-col { position: absolute; z-index: 2; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; touch-action: none; }
   .resize-row { position: absolute; z-index: 2; left: 0; right: 0; bottom: -3px; height: 7px; cursor: row-resize; touch-action: none; }
   table[data-resizable] th, table[data-resizable] td { position: relative; }
   .line-settings { margin: 10px auto; }
   .line-setting { display: inline-flex; gap: 8px; align-items: center; margin: 4px; }
   .line-chip { display: inline-block; padding: 2px 8px; border: 1px solid #aaa; border-radius: 4px; }
-  .paint-enabled { background: #fff4d6; padding: 5px 8px; border-radius: 4px; }
+  .color-assignment { max-width: 760px; margin: 18px auto; text-align: left; }
+  .color-assignment > label { display: block; margin-bottom: 8px; }
+  .product-color-option { display: inline-flex; gap: 5px; align-items: center; margin: 4px; }
+  #line-product-colors { margin: 8px 0 12px; }
+  .moysklad-setup { max-width: 760px; margin: 14px auto; }
+  .moysklad-setup .bar { justify-content: flex-start; }
+  .moysklad-status { min-height: 1.4em; color: var(--muted); }
+  .moysklad-mapping { margin: 12px auto; text-align: center; }
+  .moysklad-mapping label { display: inline-block; margin: 4px; text-align: left; vertical-align: bottom; }
+  .moysklad-mapping label select { display: block; margin-top: 4px; }
+  .moysklad-mapping select { min-width: 220px; max-width: 360px; }
+  .moysklad-table-actions { display: flex; justify-content: flex-end; margin: 8px 0 -4px; }
+  body button.moysklad-save-button {
+    display: inline-grid;
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 8px;
+    place-items: center;
+  }
+  .moysklad-save-button svg { display: block; width: 20px; height: 20px; }
+  .moysklad-save-button:disabled { cursor: not-allowed; opacity: .5; }
+  #moysklad-table table { width: max-content; min-width: 100%; }
+  #moysklad-table .positive-difference { color: #a45b00; font-weight: 700; }
+  #moysklad-table .negative-difference { color: #b00020; font-weight: 700; }
+  #moysklad-table .unmatched-row td { opacity: .8; }
+  .color-picker-inputs { display: inline-flex; gap: 8px; align-items: center; }
+  .color-picker-inputs input[type="color"] { width: 42px; height: 30px; padding: 2px; }
+  .color-picker-inputs input[type="range"] { width: 120px; vertical-align: middle; }
+  .color-preview { display: inline-block; width: 24px; height: 24px; border: 1px solid #888; border-radius: 4px; vertical-align: middle; }
+  .product-color-settings { margin: 14px auto; }
+  .product-color-editor { margin: 5px auto; }
+  .product-color-editor > * { display: inline-block; vertical-align: middle; margin: 0 5px; }
+  .product-color-editor > span:first-child { width: 150px; text-align: right; overflow-wrap: anywhere; }
   .table-wrap { max-width: 100%; overflow-x: auto; }
   .drag-handle { cursor: grab; padding: 2px 6px; touch-action: none; }
   .dragging { opacity: .4; }
@@ -156,6 +194,19 @@
     gap: 12px;
   }
   .app-title-row h2 { flex: 1; }
+  .undo-trigger {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
+    border-radius: 50%;
+    color: var(--muted);
+    font-size: 23px;
+    line-height: 1;
+  }
+  #undo-status { min-height: 1.2em; color: var(--muted); font-size: 13px; }
   .settings-trigger {
     display: grid;
     place-items: center;
@@ -183,9 +234,9 @@
     border-radius: 13px;
     background: var(--surface);
     box-shadow: var(--shadow);
+    text-align: left;
   }
-  .settings-popover .theme-switcher,
-  .settings-popover #paint-tools {
+  .settings-popover .theme-switcher {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-start;
@@ -205,11 +256,6 @@
     border-radius: 8px;
   }
   .settings-popover .theme-preview { width: 28px; height: 26px; }
-  .settings-popover .paint-enabled { padding: 5px 7px; }
-  .settings-popover #paint-mode { min-width: 90px; }
-  .settings-popover #palette { gap: 3px; }
-  .settings-popover .swatch { width: 20px; height: 20px; border-width: 1px; }
-  .settings-popover #paint-tools > button { padding: 5px 8px; }
   body[data-theme="dark-lab"] {
     --page-bg: #0e1012;
     --surface: #171a1f;
@@ -283,10 +329,6 @@
     box-shadow: var(--shadow);
     color: var(--text);
     transition: background-color .25s, border-color .25s, box-shadow .25s;
-  }
-  body #paint-tools {
-    justify-content: flex-start;
-    min-height: 48px;
   }
   body nav {
     justify-content: flex-start;
@@ -368,7 +410,6 @@
   }
   body .hint { color: var(--muted); font-size: 14px; }
   body .err { color: #d82929; }
-  body .paint-enabled { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
   body #items-table table,
   body #logs-table table,
   body #print table {
@@ -502,7 +543,6 @@
     box-shadow: 0 8px 18px rgba(116, 87, 238, .28);
   }
   body[data-theme="resin-glass"] .bar,
-  body[data-theme="resin-glass"] #paint-tools,
   body[data-theme="resin-glass"] .theme-switcher,
   body[data-theme="resin-glass"] #items-table table,
   body[data-theme="resin-glass"] #logs-table table {
@@ -557,7 +597,6 @@
     box-shadow: inset 0 -4px var(--accent);
   }
   body[data-theme="swiss-technical"] .bar,
-  body[data-theme="swiss-technical"] #paint-tools,
   body[data-theme="swiss-technical"] .theme-switcher,
   body[data-theme="swiss-technical"] #items-table table,
   body[data-theme="swiss-technical"] #logs-table table {
@@ -600,7 +639,6 @@
     body nav { width: 100%; }
     body nav button { flex: 1; padding: 9px 8px; }
     .settings-popover { width: min(360px, calc(100vw - 20px)); }
-    .settings-popover #paint-tools { flex-wrap: wrap; }
     .theme-option { flex: 0 0 48px; }
   }
   @media (min-width: 721px) {
@@ -611,8 +649,13 @@
     }
     .app-title-row h2 {
       display: inline-block;
-      width: calc(100% - 52px);
+      width: calc(100% - 100px);
       margin: 10px 0 12px;
+    }
+    .undo-trigger {
+      position: absolute;
+      top: 0;
+      right: 46px;
     }
     .settings-trigger {
       position: absolute;
@@ -621,7 +664,8 @@
     }
     body .app-header nav {
       display: block;
-      width: max-content;
+      position: relative;
+      width: 100%;
       white-space: nowrap;
     }
     body .app-header nav button {
@@ -630,9 +674,17 @@
       flex: none;
       vertical-align: middle;
     }
+    body .app-header nav button[data-tab="settings"] {
+      float: right;
+      margin-left: 0;
+    }
     body .bar {
       display: block;
-      overflow: hidden;
+      width: fit-content;
+      max-width: 100%;
+      box-sizing: border-box;
+      margin-inline: auto;
+      overflow-x: auto;
       white-space: nowrap;
     }
     body .bar > * {
@@ -642,19 +694,14 @@
       vertical-align: middle;
     }
     body .bar .hint { display: inline-block; }
-    .settings-popover .theme-switcher,
-    .settings-popover #paint-tools {
+    .settings-popover .theme-switcher {
       display: block;
       white-space: nowrap;
     }
-    .settings-popover .theme-option,
-    .settings-popover #paint-tools > * {
+    .settings-popover .theme-option {
       display: inline-block;
       vertical-align: middle;
     }
-    .settings-popover .palette { display: inline-block; }
-    .palette { display: block; }
-    .swatch { display: inline-block; vertical-align: middle; }
     .theme-switcher { display: block; }
     .theme-option { display: inline-grid; vertical-align: middle; }
     .line-setting { display: inline-block; }
@@ -715,9 +762,11 @@
 <header class="app-header no-print">
   <div class="app-title-row">
     <h2>Склад</h2>
+    <button id="undo-trigger" class="undo-trigger" type="button" onclick="undoLastChange()"
+      aria-label="Отменить последнее действие" title="Отменить последнее действие (Ctrl+Z)">↶</button>
     <button id="settings-trigger" class="settings-trigger" type="button"
-      aria-label="Настройки оформления и раскраски" aria-expanded="false" aria-controls="settings-popover"
-      title="Оформление и раскраска">⌄</button>
+      aria-label="Настройки оформления" aria-expanded="false" aria-controls="settings-popover"
+      title="Оформление">⌄</button>
     <div id="settings-popover" class="settings-popover" hidden>
       <div class="theme-switcher" role="group" aria-label="Выбор оформления">
         <button type="button" class="theme-option" data-theme-choice="clean-light" aria-label="Светлый минимализм" aria-pressed="true" title="Светлый минимализм">
@@ -733,54 +782,33 @@
           <span class="theme-preview swiss" aria-hidden="true"></span>
         </button>
       </div>
-      <div class="bar" id="paint-tools">
-        <label class="paint-enabled"><input id="paint-enabled" type="checkbox"> Раскраска</label>
-        <label>Применять к:
-          <select id="paint-mode">
-            <option value="cell">ячейке</option>
-            <option value="row">строке</option>
-            <option value="column">столбцу</option>
-          </select>
-        </label>
-        <div id="palette" class="palette" aria-label="Палитра цветов"></div>
-        <button onclick="clearPaint()">Очистить цвет</button>
-      </div>
     </div>
   </div>
   <nav>
     <button data-tab="base" class="active">База</button>
     <button data-tab="journal">Журнал</button>
     <button data-tab="print">Печать</button>
+    <button data-tab="moysklad">МойСклад</button>
+    <button data-tab="settings">Настройка</button>
   </nav>
 </header>
+<div id="undo-status" class="no-print" role="status" aria-live="polite"></div>
 <button id="scroll-top" class="scroll-top no-print" type="button" aria-label="Наверх" title="Наверх" hidden>↑</button>
-<div class="bar no-print">API: <input id="api" class="l" value="http://127.0.0.1:8000">
-  <button onclick="reload()">Обновить</button></div>
-  <div id="err" class="err"></div>
+<div id="err" class="err"></div>
 
 <!-- ===== БАЗА ===== -->
 <section id="tab-base">
   <div class="bar">
     <b>Новая партия:</b>
     <select id="n-product" class="m"></select>
-    <input id="n-color" class="m" placeholder="Название">
+    <select id="n-color" class="m" aria-label="Название / цвет" onchange="setProductColorBackground(this)"></select>
     <input id="n-batch" class="m" placeholder="Партия">
     <input id="n-date" type="date">
     <input id="n-qty" class="s" type="number" min="0" placeholder="Кол-во">
     <button onclick="addItem()">Добавить</button>
     <input id="filter" class="m" placeholder="Поиск…" oninput="applyFilter()">
   </div>
-  <div class="bar">
-    <b>Добавить линейку:</b>
-    <input id="line-name" class="m" placeholder="Название">
-    <select id="line-color" aria-label="Цвет новой линейки"></select>
-    <button onclick="addLine()">Добавить</button>
-  </div>
-  <details class="line-settings no-print">
-    <summary>Линейки и их цвета</summary>
-    <div id="line-settings"></div>
-  </details>
-  <div class="hint">Все поля редактируются прямо в таблице, изменения сохраняются сразу и попадают в журнал.</div>
+  <div class="hint">Все поля редактируются прямо в таблице. В журнал попадают создание партии и изменение количества.</div>
   <div id="items-table" class="table-wrap"></div>
 </section>
 
@@ -789,6 +817,8 @@
   <div class="bar">
     <button onclick="divider('day')">Новый день</button>
     <button onclick="divider('inventory')">Инвентаризация</button>
+    <input id="journal-filter" class="m" type="search" placeholder="Поиск в журнале…"
+      aria-label="Поиск в журнале" oninput="applyJournalFilter()">
     <span class="hint">Правка строк журнала меняет только запись, остатки в Базе не затрагиваются.</span>
   </div>
   <div class="sub" id="months"></div>
@@ -800,6 +830,87 @@
   <div class="bar"><button onclick="window.print()">Печать (А4)</button></div>
   <div id="print-head"></div>
   <div class="cols" id="print"></div>
+</section>
+
+<!-- ===== МОЙСКЛАД ===== -->
+<section id="tab-moysklad" class="hidden">
+  <div class="moysklad-setup no-print">
+    <div class="bar">
+      <label for="moysklad-token"><b>API-токен МойСклад:</b></label>
+      <input id="moysklad-token" type="password" class="l" autocomplete="new-password"
+        placeholder="Введите токен для сохранения">
+      <button type="button" onclick="saveMoyskladToken()">Сохранить токен</button>
+      <button id="moysklad-remove-token" type="button" onclick="deleteMoyskladToken()" hidden>Удалить токен</button>
+    </div>
+    <div id="moysklad-token-status" class="moysklad-status"></div>
+    <div class="bar">
+      <label for="moysklad-store"><b>Склад МойСклад:</b></label>
+      <select id="moysklad-store" disabled><option value="">Сначала укажите токен</option></select>
+      <button type="button" onclick="loadMoysklad()">Обновить данные «Базы» и МойСклад</button>
+    </div>
+    <div class="hint">Токен и сопоставления хранятся локально. МойСклад используется только для чтения; его данные не изменяются.</div>
+    <div id="moysklad-status" class="moysklad-status" role="status"></div>
+  </div>
+  <div class="moysklad-mapping no-print">
+    <label>Название из базы
+      <select id="moysklad-local-name" disabled><option value="">Загрузите остатки</option></select>
+    </label>
+    <label>Товар из МойСклад
+      <select id="moysklad-external-item" disabled><option value="">Загрузите остатки</option></select>
+    </label>
+    <button id="moysklad-save-mapping" type="button" onclick="saveSelectedMoyskladMapping()" disabled>Сохранить сопоставление</button>
+    <button id="moysklad-clear-mapping" type="button" onclick="clearSelectedMoyskladMapping()" disabled>Снять сопоставление</button>
+  </div>
+  <div class="hint no-print">Точные совпадения названий подставляются как подсказки. Связь сохраняется после нажатия «Сохранить сопоставление».</div>
+  <div class="moysklad-table-actions no-print">
+    <button id="moysklad-save-snapshot" class="moysklad-save-button" type="button"
+      onclick="saveMoyskladSnapshot()" aria-label="Сохранить таблицу в файл"
+      title="Сохранить таблицу в файл" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12m0 0 4-4m-4 4-4-4"></path>
+        <path d="M5 16v4h14v-4"></path>
+      </svg>
+    </button>
+  </div>
+  <div id="moysklad-table" class="table-wrap"></div>
+</section>
+
+<!-- ===== НАСТРОЙКА ===== -->
+<section id="tab-settings" class="hidden">
+  <div class="bar no-print">API: <input id="api" class="l" aria-label="Адрес API">
+    <button onclick="reload()">Обновить</button></div>
+  <div class="bar no-print">
+    <b>Добавить линейку:</b>
+    <input id="line-name" class="m" placeholder="Название">
+    <select id="line-color" aria-label="Цвет линейки"></select>
+    <button onclick="addLine()">Добавить</button>
+  </div>
+  <details class="line-settings no-print" open>
+    <summary>Линейки и их оформление</summary>
+    <div id="line-settings"></div>
+  </details>
+  <div class="bar no-print">
+    <b>Добавить цвет:</b>
+    <input id="product-color-name" class="m" placeholder="Название цвета" maxlength="100">
+    <span class="color-picker-inputs">
+      <label>RGB <input id="product-color-rgb" type="color" value="#ff6384" aria-label="RGB цвета"></label>
+      <label>Прозрачность <input id="product-color-opacity" type="range" min="0" max="1" step="0.01" value="0.36" aria-label="Прозрачность"></label>
+      <output id="product-color-opacity-value">36%</output>
+      <span id="product-color-preview" class="color-preview" aria-hidden="true"></span>
+    </span>
+    <button onclick="addProductColor()">Добавить</button>
+  </div>
+  <details class="product-color-settings no-print">
+    <summary>Цвет и прозрачность существующих цветов</summary>
+    <div id="product-color-settings"></div>
+  </details>
+  <div class="color-assignment no-print">
+    <label for="color-line-target"><b>Разрешённые цвета линейки:</b></label>
+    <select id="color-line-target" aria-label="Линейка для настройки цветов"></select>
+    <div id="line-product-colors"></div>
+    <button id="save-line-colors" type="button" onclick="saveLineProductColors()">Сохранить цвета линейки</button>
+  </div>
 </section>
 
 <dialog id="link-dialog">
@@ -817,7 +928,8 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const base = () => $('api').value.replace(/\/$/, '');
+const base = () => ($('api').value.trim() ||
+  (/^https?:$/.test(location.protocol) ? location.origin : 'http://127.0.0.1:8000')).replace(/\/$/, '');
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const DEFAULT_TYPES = ['ПРИХОД','РАСХОД','НОВАЯ ПАРТИЯ','КОРРЕКЦИЯ','ПРАВКА','УДАЛЕНИЕ'];
 const COLORS = [
@@ -829,11 +941,14 @@ const COLORS = [
 ];
 const THEMES = ['clean-light', 'dark-lab', 'resin-glass', 'swiss-technical'];
 let tab = 'base', month = null, logTypes = DEFAULT_TYPES;
-let lines = [], savedStyles = [], selectedColor = 0;
+let lines = [], productColors = [], savedStyles = [];
+let moyskladStockItems = [];
+let moyskladComparison = null;
+let moyskladLoaded = false;
+let moyskladSnapshotRows = [];
+let moyskladLastUpdatedAt = null;
 const LINK_NOTE_PREFIX = '[[ERP_LINK_V1]]';
 let editingLinkLogId = null;
-const styleKey = (table, kind, row, column) => JSON.stringify([table, kind, row, column]);
-
 function setTheme(theme, persist = true) {
   if (!THEMES.includes(theme)) return;
   document.body.dataset.theme = theme;
@@ -934,20 +1049,10 @@ function colorValue(index) {
   return getComputedStyle(document.documentElement).getPropertyValue(`--c${index}`).trim();
 }
 
-function initPalette() {
-  $('palette').innerHTML = COLORS.map((c, i) =>
-    `<button type="button" class="swatch${i === selectedColor ? ' selected' : ''}" ` +
-    `style="background:${c.css}" title="${c.name}" aria-label="${c.name}" onclick="selectPaintColor(${i})"></button>`
-  ).join('');
+function initLineColors() {
   $('line-color').innerHTML = COLORS.map((c, i) =>
     `<option value="${i}">${c.name}</option>`
   ).join('');
-}
-
-function selectPaintColor(index) {
-  selectedColor = index;
-  document.querySelectorAll('#palette .swatch').forEach((button, i) =>
-    button.classList.toggle('selected', i === index));
 }
 
 function getStyle(table, kind, row, column) {
@@ -978,55 +1083,6 @@ function applyTableStyles(table) {
 function saveTableStyles() {
   document.querySelectorAll('table[data-style-table]').forEach(applyTableStyles);
 }
-
-function paintRequest(table, kind, row, column, color) {
-  const target = {table, kind, row, column};
-  const existing = getStyle(table, kind, row, column);
-  if (color == null) {
-    if (!existing) return Promise.resolve();
-    return api('/styles', 'DELETE', target).then(() => {
-      savedStyles = savedStyles.filter(s => styleKey(s.table, s.kind, s.row, s.column) !==
-        styleKey(table, kind, row, column));
-      saveTableStyles();
-    });
-  }
-  return api('/styles', 'PUT', {...target, color}).then(saved => {
-    savedStyles = savedStyles.filter(s => styleKey(s.table, s.kind, s.row, s.column) !==
-      styleKey(table, kind, row, column));
-    savedStyles.push(saved);
-    saveTableStyles();
-  });
-}
-
-async function clearPaint() {
-  if (!$('paint-enabled').checked) return;
-  const cell = window.paintTarget;
-  if (!cell) return;
-  const table = cell.closest('table[data-style-table]');
-  const tr = cell.closest('tr');
-  if (!table || !tr) return;
-  const kind = $('paint-mode').value;
-  const row = kind === 'column' ? '*' : tr.dataset.styleRow;
-  const column = kind === 'row' ? '*' : cell.dataset.styleCol;
-  try { await paintRequest(table.dataset.styleTable, kind, row, column, null); }
-  catch {}
-}
-
-document.addEventListener('click', event => {
-  if (!$('paint-enabled').checked) return;
-  if (event.target.closest('button, input, select, textarea, a, .resize-col, .resize-row, .drag-handle')) return;
-  const cell = event.target.closest('td, th');
-  const table = cell && cell.closest('table[data-style-table]');
-  const tr = cell && cell.closest('tr');
-  if (!cell || !table || !tr || event.target.closest('.resize-col, .resize-row')) return;
-  event.preventDefault();
-  event.stopPropagation();
-  window.paintTarget = cell;
-  const kind = $('paint-mode').value;
-  const row = kind === 'column' ? '*' : tr.dataset.styleRow;
-  const column = kind === 'row' ? '*' : cell.dataset.styleCol;
-  paintRequest(table.dataset.styleTable, kind, row, column, selectedColor).catch(() => {});
-}, true);
 
 function resizeStorageKey(tableId, kind, key) {
   return `warehouse-size:${tableId}:${kind}:${key}`;
@@ -1189,6 +1245,139 @@ async function addLine() {
     await api('/lines', 'POST', {name, color: Number($('line-color').value)});
     $('line-name').value = '';
     await loadBase();
+    $('color-line-target').value = name;
+    renderProductColorAssignments();
+  } catch {}
+}
+
+async function addProductColor() {
+  const name = $('product-color-name').value.trim();
+  if (!name) return;
+  try {
+    await api('/product-colors', 'POST', {
+      name, rgb: $('product-color-rgb').value,
+      opacity: Number($('product-color-opacity').value),
+    });
+    $('product-color-name').value = '';
+    await loadBase();
+  } catch {}
+}
+
+function colorCss(color) {
+  const rgb = /^#([0-9a-f]{6})$/i.exec(color.rgb || '');
+  if (!rgb) return (COLORS[color.palette_index] || COLORS[0]).css;
+  const channels = rgb[1].match(/.{2}/g).map(channel => parseInt(channel, 16));
+  const opacity = Math.max(0, Math.min(1, Number(color.opacity)));
+  return `rgba(${channels.join(', ')}, ${Number.isFinite(opacity) ? opacity : 0.36})`;
+}
+
+function renderProductColorSettings() {
+  $('product-color-settings').innerHTML = productColors.map(color =>
+    `<div class="product-color-editor" data-color-name="${esc(color.name)}">` +
+      `<span>${esc(color.name)}</span>` +
+      `<span class="color-preview" style="background:${colorCss(color)}" aria-hidden="true"></span>` +
+      `<label>RGB <input type="color" value="${esc(color.rgb || '#ff6384')}" aria-label="RGB цвета ${esc(color.name)}" oninput="previewProductColor(this)" onchange="saveProductColor(this)"></label>` +
+      `<label>Прозрачность <input type="range" min="0" max="1" step="0.01" value="${Number(color.opacity ?? 0.36)}" aria-label="Прозрачность цвета ${esc(color.name)}" oninput="previewProductColor(this)" onchange="saveProductColor(this)"></label>` +
+      `<output>${Math.round(Number(color.opacity ?? 0.36) * 100)}%</output>` +
+      `<button type="button" data-delete-product-color="${esc(color.name)}" aria-label="Удалить цвет ${esc(color.name)}">Удалить</button>` +
+    `</div>`
+  ).join('');
+  $('product-color-settings').querySelectorAll('[data-delete-product-color]').forEach(button => {
+    button.addEventListener('click', () => deleteProductColor(button.dataset.deleteProductColor));
+  });
+}
+
+async function deleteProductColor(name) {
+  try {
+    await api('/product-colors/' + encodeURIComponent(name), 'DELETE');
+    await loadBase();
+  } catch {}
+}
+
+function previewProductColor(input) {
+  const editor = input.closest('.product-color-editor');
+  if (!editor) {
+    const rgb = $('product-color-rgb').value;
+    const opacity = Number($('product-color-opacity').value);
+    $('product-color-preview').style.backgroundColor = colorCss({rgb, opacity});
+    $('product-color-opacity-value').value = `${Math.round(opacity * 100)}%`;
+    return;
+  }
+  const rgb = editor.querySelector('input[type="color"]').value;
+  const opacity = Number(editor.querySelector('input[type="range"]').value);
+  const preview = editor.querySelector('.color-preview');
+  preview.style.backgroundColor = colorCss({rgb, opacity});
+  editor.querySelector('output').value = `${Math.round(opacity * 100)}%`;
+}
+
+async function saveProductColor(input) {
+  const editor = input.closest('.product-color-editor');
+  const name = editor.dataset.colorName;
+  try {
+    await api('/product-colors/' + encodeURIComponent(name), 'PUT', {
+      rgb: editor.querySelector('input[type="color"]').value,
+      opacity: Number(editor.querySelector('input[type="range"]').value),
+    });
+    productColors = productColors.map(color => color.name === name
+      ? {...color, rgb: editor.querySelector('input[type="color"]').value,
+        opacity: Number(editor.querySelector('input[type="range"]').value)}
+      : color);
+    renderProductColorSettings();
+    renderItems(currentItems);
+    renderNewItemColorOptions();
+  } catch {}
+}
+
+function renderProductColorAssignments() {
+  const target = $('color-line-target');
+  const previous = target.value;
+  target.innerHTML = lines.map(line =>
+    `<option value="${esc(line.name)}">${esc(line.name)}</option>`
+  ).join('');
+  if (lines.some(line => line.name === previous)) target.value = previous;
+  target.disabled = lines.length === 0;
+  const line = lines.find(entry => entry.name === target.value);
+  $('line-product-colors').innerHTML = line
+    ? productColors.map(color => {
+      const checked = line.product_colors.some(name => name.toLowerCase() === color.name.toLowerCase());
+      return `<label class="product-color-option"><input type="checkbox" value="${esc(color.name)}" ${checked ? 'checked' : ''}>` +
+        `<span class="line-chip" style="background:${colorCss(color)}">${esc(color.name)}</span>` +
+        (checked ? `<button type="button" data-remove-line-color="${esc(color.name)}">Убрать</button>` : '') +
+        `<button type="button" data-delete-catalog-color="${esc(color.name)}">Удалить насовсем</button>` +
+        `</label>`;
+    }).join('') || '<span class="hint">Сначала добавьте цвета в справочник.</span>'
+    : '<span class="hint">Сначала добавьте линейку.</span>';
+  $('save-line-colors').disabled = !line;
+  $('line-product-colors').querySelectorAll('[data-remove-line-color]').forEach(button => {
+    button.addEventListener('click', () =>
+      removeProductColorFromLine(line.name, button.dataset.removeLineColor));
+  });
+  $('line-product-colors').querySelectorAll('[data-delete-catalog-color]').forEach(button => {
+    button.addEventListener('click', () => deleteProductColor(button.dataset.deleteCatalogColor));
+  });
+}
+
+async function removeProductColorFromLine(lineName, colorName) {
+  const line = lines.find(entry => entry.name === lineName);
+  if (!line) return;
+  try {
+    await api('/lines/' + encodeURIComponent(lineName) + '/product-colors', 'PUT', {
+      colors: line.product_colors.filter(name => name.toLowerCase() !== colorName.toLowerCase()),
+    });
+    await loadBase();
+  } catch {}
+}
+
+async function saveLineProductColors() {
+  const lineName = $('color-line-target').value;
+  if (!lineName) return;
+  const selected = [...$('line-product-colors').querySelectorAll('input:checked')]
+    .map(input => input.value);
+  try {
+    await api('/lines/' + encodeURIComponent(lineName) + '/product-colors', 'PUT', {
+      colors: selected,
+    });
+    await loadBase();
   } catch {}
 }
 
@@ -1285,11 +1474,14 @@ function lineOptions(selected = '') {
 
 function renderLineControls() {
   $('n-product').innerHTML = lineOptions();
-  const selectedLine = lines.find(line => line.name === $('n-product').value);
-  $('n-product').style.backgroundColor = selectedLine ? COLORS[selectedLine.color].css : '';
+  const setNewItemLineColor = () => {
+    const selectedLine = lines.find(line => line.name === $('n-product').value);
+    $('n-product').style.backgroundColor = selectedLine ? COLORS[selectedLine.color].css : '';
+    renderNewItemColorOptions();
+  };
+  setNewItemLineColor();
   $('n-product').onchange = () => {
-    const line = lines.find(entry => entry.name === $('n-product').value);
-    $('n-product').style.backgroundColor = line ? COLORS[line.color].css : '';
+    setNewItemLineColor();
   };
   $('line-settings').innerHTML = lines.map(line =>
     `<label class="line-setting"><span class="line-chip" style="background:${COLORS[line.color].css}">${esc(line.name)}</span>` +
@@ -1300,12 +1492,13 @@ function renderLineControls() {
   $('line-settings').querySelectorAll('[data-delete-line]').forEach(button => {
     button.addEventListener('click', () => deleteLine(button.dataset.deleteLine));
   });
+  renderProductColorAssignments();
 }
 
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   tab = b.dataset.tab;
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x === b));
-  ['base', 'journal', 'print'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== tab));
+  ['base', 'journal', 'print', 'moysklad', 'settings'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== tab));
   if (tab === 'journal') month = currentMonth();
   reload();
 });
@@ -1314,15 +1507,385 @@ async function reload() {
   if (tab === 'base') return loadBase();
   if (tab === 'journal') return loadJournal(true);
   if (tab === 'print') return loadPrint();
+  if (tab === 'moysklad') return loadMoysklad();
+  if (tab === 'settings') return loadBase();
+}
+
+async function loadMoysklad() {
+  $('moysklad-status').textContent = 'Обновляю данные «Базы» и МойСклад…';
+  try {
+    const localData = await api('/moysklad/local-groups');
+    localData.stock_items = [];
+    renderMoyskladComparison(localData);
+    moyskladLastUpdatedAt = new Date();
+
+    const config = await api('/moysklad/config');
+    $('moysklad-remove-token').hidden = !config.configured;
+    $('moysklad-token-status').textContent = config.configured
+      ? 'Токен сохранён на сервере; само значение не отображается.'
+      : 'Токен ещё не настроен.';
+    if (!config.configured) {
+      $('moysklad-store').innerHTML = '<option value="">Подключите токен, чтобы выбрать склад</option>';
+      $('moysklad-store').disabled = true;
+      $('moysklad-status').textContent =
+        'Остатки из «Базы» уже загружены. Добавьте токен позже, чтобы сравнить с МойСклад.';
+      return;
+    }
+    await loadMoyskladStores(config.store_href);
+  } catch (error) {
+    $('moysklad-status').textContent =
+      `Не удалось загрузить настройки МойСклад: ${error.message || 'неизвестная ошибка'}`;
+  }
+}
+
+async function saveMoyskladToken() {
+  const token = $('moysklad-token').value.trim();
+  if (!token) {
+    $('moysklad-status').textContent = 'Введите API-токен.';
+    return;
+  }
+  try {
+    await api('/moysklad/token', 'PUT', {token});
+    $('moysklad-token').value = '';
+    $('moysklad-status').textContent = 'Токен сохранён. Загружаю список складов…';
+    moyskladLoaded = false;
+    await loadMoysklad();
+  } catch {}
+}
+
+async function deleteMoyskladToken() {
+  try {
+    await api('/moysklad/token', 'DELETE');
+    $('moysklad-token').value = '';
+    $('moysklad-status').textContent = 'Токен удалён.';
+    moyskladLoaded = false;
+    await loadMoysklad();
+  } catch {}
+}
+
+async function loadMoyskladStores(selectedHref = $('moysklad-store').value) {
+  try {
+    const stores = await api('/moysklad/stores');
+    $('moysklad-store').innerHTML = '<option value="">— выберите склад —</option>' +
+      stores.map(store => `<option value="${esc(store.href)}">${esc(store.name)}</option>`).join('');
+    $('moysklad-store').disabled = stores.length === 0;
+    if (stores.some(store => store.href === selectedHref)) {
+      $('moysklad-store').value = selectedHref;
+      await loadMoyskladComparison();
+    } else {
+      $('moysklad-status').textContent = stores.length
+        ? 'Остатки из «Базы» загружены. Выберите склад МойСклад, чтобы продолжить сравнение.'
+        : 'В аккаунте МойСклад не найдено складов.';
+      moyskladLoaded = false;
+    }
+  } catch (error) {
+    $('moysklad-store').disabled = true;
+    $('moysklad-status').textContent =
+      `Остатки из «Базы» показаны. Не удалось загрузить склады МойСклад: ${error.message || 'неизвестная ошибка'}`;
+  }
+}
+
+async function selectMoyskladStore() {
+  const href = $('moysklad-store').value;
+  if (!href) {
+    if (moyskladComparison) {
+      moyskladComparison.stock_items = [];
+      renderMoyskladComparison(moyskladComparison);
+    }
+    $('moysklad-status').textContent =
+      'Остатки из «Базы» остаются на экране. Выберите склад МойСклад для сравнения.';
+    return;
+  }
+  try {
+    await api('/moysklad/store', 'PUT', {href});
+    await loadMoyskladComparison();
+  } catch {}
+}
+
+async function loadMoyskladComparison() {
+  if (!$('moysklad-store').value) {
+    $('moysklad-status').textContent = 'Сначала выберите склад МойСклад.';
+    return;
+  }
+  $('moysklad-status').textContent = 'Загружаю остатки и сравниваю…';
+  try {
+    const comparison = await api('/moysklad/compare');
+    renderMoyskladComparison(comparison);
+    moyskladLoaded = true;
+    moyskladLastUpdatedAt = new Date();
+    $('moysklad-status').textContent =
+      `Загружено товаров МойСклад: ${comparison.stock_items.length}. Разница считается как «База − МойСклад».`;
+  } catch (error) {
+    $('moysklad-status').textContent =
+      `Не удалось загрузить остатки МойСклад: ${error.message || 'неизвестная ошибка'}`;
+  }
+}
+
+function formatMoyskladQuantity(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return Number.isInteger(number)
+    ? String(number)
+    : number.toLocaleString('ru-RU', {maximumFractionDigits: 3});
+}
+
+function renderMoyskladComparison(data) {
+  moyskladComparison = data;
+  moyskladStockItems = data.stock_items;
+  const stockByHref = new Map(moyskladStockItems.map(item => [item.href, item]));
+  const assignedHrefs = new Set(
+    Object.values(data.mappings).filter(Boolean));
+  const exactMatches = new Map();
+  for (const group of data.groups) {
+    const localKey = group.name.toLocaleLowerCase();
+    if (Object.prototype.hasOwnProperty.call(data.mappings, localKey)) continue;
+    const matches = moyskladStockItems.filter(item =>
+      item.name.toLocaleLowerCase() === group.name.toLocaleLowerCase() &&
+      !assignedHrefs.has(item.href));
+    if (matches.length === 1) {
+      exactMatches.set(localKey, matches[0].href);
+      assignedHrefs.add(matches[0].href);
+    }
+  }
+  moyskladSnapshotRows = [];
+  let html = '<table data-style-table="moysklad" data-resize-id="moysklad">' +
+    '<tr data-style-row="header"><th>Название из базы</th><th>Количество в базе</th>' +
+    '<th>Название из МойСклад</th><th>Количество в МойСклад</th>' +
+    '<th>Разница (база − МойСклад)</th></tr>';
+  for (const group of data.groups) {
+    const localKey = group.name.toLocaleLowerCase();
+    const hasMapping = Object.prototype.hasOwnProperty.call(data.mappings, localKey);
+    const selectedHref = hasMapping
+      ? data.mappings[localKey]
+      : (exactMatches.get(localKey) || '');
+    const remote = selectedHref ? stockByHref.get(selectedHref) : null;
+    const diff = remote
+      ? Math.round((Number(group.quantity) - Number(remote.quantity)) * 1000) / 1000
+      : null;
+    moyskladSnapshotRows.push({
+      local_name: group.name,
+      local_quantity: Number(group.quantity),
+      moysklad_name: remote ? remote.name : null,
+      moysklad_quantity: remote ? Number(remote.quantity) : null,
+      difference: diff,
+    });
+    const diffClass = diff > 0 ? 'positive-difference' : diff < 0 ? 'negative-difference' : '';
+    html += `<tr data-style-row="${esc(group.name)}">` +
+      `<td>${esc(group.name)}</td><td class="num">${formatMoyskladQuantity(group.quantity)}</td>` +
+      `<td>${remote ? esc(remote.name) : '—'}</td>` +
+      `<td class="num">${remote ? formatMoyskladQuantity(remote.quantity) : '—'}</td>` +
+      `<td class="num ${diffClass}">${diff == null ? '—' : `${diff > 0 ? '+' : ''}${formatMoyskladQuantity(diff)}`}</td></tr>`;
+  }
+
+  if (!data.groups.length) {
+    html += '<tr data-style-row="empty"><td colspan="5" class="hint">В «Базе» нет позиций для сравнения.</td></tr>';
+  }
+  $('moysklad-table').innerHTML = html + '</table>';
+  $('moysklad-save-snapshot').disabled = false;
+  renderMoyskladMappingControls(data, exactMatches);
+  enhanceTables();
+}
+
+async function saveMoyskladSnapshot() {
+  const downloadedAt = new Date();
+  const formatDateTime = value => value
+    ? new Intl.DateTimeFormat('ru-RU', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).format(value)
+    : 'Данные ещё не обновлялись';
+  const xmlEscape = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
+  }[character]));
+  const stringCell = (value, style = '') =>
+    `<Cell${style ? ` ss:StyleID="${style}"` : ''}><Data ss:Type="String">${xmlEscape(value)}</Data></Cell>`;
+  const numberCell = (value, style = '') => Number.isFinite(Number(value))
+    ? `<Cell${style ? ` ss:StyleID="${style}"` : ''}><Data ss:Type="Number">${Number(value)}</Data></Cell>`
+    : '<Cell/>';
+  const rows = [
+    `<Row>${stringCell('Дата и время скачивания', 'MetaLabel')}${stringCell(formatDateTime(downloadedAt), 'MetaValue')}</Row>`,
+    `<Row>${stringCell('Дата и время последнего обновления', 'MetaLabel')}${stringCell(formatDateTime(moyskladLastUpdatedAt), 'MetaValue')}</Row>`,
+    `<Row/>`,
+    `<Row>${[
+      'Название из базы', 'Количество в базе', 'Название из МойСклад',
+      'Количество в МойСклад', 'Разница (база − МойСклад)',
+    ].map(value => stringCell(value, 'Header')).join('')}</Row>`,
+    ...moyskladSnapshotRows.map((row, index) => {
+      const style = index % 2 === 0 ? 'Stripe' : '';
+      return `<Row>${stringCell(row.local_name, style)}${numberCell(row.local_quantity, style)}${stringCell(row.moysklad_name, style)}${numberCell(row.moysklad_quantity, style)}${numberCell(row.difference, style)}</Row>`;
+    }),
+  ];
+  const content = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/></Style>
+    <Style ss:ID="MetaLabel"><Font ss:Bold="1"/></Style>
+    <Style ss:ID="MetaValue"><NumberFormat ss:Format="@" /></Style>
+    <Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/><Alignment ss:WrapText="1" ss:Vertical="Center"/></Style>
+    <Style ss:ID="Stripe"><Interior ss:Color="#E6E6E6" ss:Pattern="Solid"/></Style>
+  </Styles>
+  <Worksheet ss:Name="Сравнение">
+    <Table>
+      <Column ss:Width="180"/><Column ss:Width="110"/><Column ss:Width="220"/><Column ss:Width="150"/><Column ss:Width="180"/>
+      ${rows.join('\n      ')}
+    </Table>
+  </Worksheet>
+</Workbook>`;
+  const filename = `moysklad-comparison-${downloadedAt.toISOString().replace(/[:.]/g, '-')}.xls`;
+  const downloadFile = () => {
+    const url = URL.createObjectURL(new Blob([content], {
+      type: 'application/vnd.ms-excel;charset=utf-8',
+    }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.position = 'fixed';
+    link.style.left = '-10000px';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  };
+  try {
+    if (typeof window.showSaveFilePicker !== 'function') {
+      downloadFile();
+      $('moysklad-status').textContent =
+        'Файл скачивается. Чтобы каждый раз выбирать папку, включите в настройках браузера запрос места сохранения.';
+      return;
+    }
+    const handle = await window.showSaveFilePicker({
+      suggestedName: filename,
+      types: [{description: 'Таблица Excel', accept: {'application/vnd.ms-excel': ['.xls']}}],
+    });
+    const file = await handle.createWritable();
+    await file.write(content);
+    await file.close();
+    $('moysklad-status').textContent = 'Таблица сохранена в файл Excel.';
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+    try {
+      downloadFile();
+      $('moysklad-status').textContent =
+        'Файл скачивается. Диалог выбора места недоступен; папка определяется настройками загрузок браузера.';
+    } catch (downloadError) {
+      $('moysklad-status').textContent =
+        `Не удалось сохранить файл: ${downloadError.message || error.message || 'неизвестная ошибка'}`;
+    }
+  }
+}
+
+function renderMoyskladMappingControls(data, exactMatches) {
+  const localSelect = $('moysklad-local-name');
+  const previous = localSelect.value;
+  localSelect.innerHTML = data.groups.map(group =>
+    `<option value="${esc(group.name)}">${esc(group.name)}</option>`
+  ).join('');
+  if (data.groups.some(group => group.name === previous)) localSelect.value = previous;
+  localSelect.disabled = data.groups.length === 0;
+  $('moysklad-save-mapping').disabled = data.groups.length === 0 || moyskladStockItems.length === 0;
+  $('moysklad-clear-mapping').disabled = data.groups.length === 0;
+  localSelect.onchange = () => updateMoyskladMappingSelection(data, exactMatches);
+  updateMoyskladMappingSelection(data, exactMatches);
+}
+
+function updateMoyskladMappingSelection(data, exactMatches) {
+  const localName = $('moysklad-local-name').value;
+  const localKey = localName.toLocaleLowerCase();
+  const externalSelect = $('moysklad-external-item');
+  const hasSavedMapping = Object.prototype.hasOwnProperty.call(data.mappings, localKey);
+  const selectedHref = hasSavedMapping
+    ? data.mappings[localKey]
+    : (exactMatches.get(localKey) || '');
+  const assignedElsewhere = new Set(Object.entries(data.mappings)
+    .filter(([name, href]) => name !== localKey && href)
+    .map(([, href]) => href));
+  externalSelect.innerHTML = '<option value="">— не сопоставлен —</option>' +
+    moyskladStockItems.map(item => {
+      const label = `${item.name}${item.article ? ` — ${item.article}` : ''}${item.code ? ` (${item.code})` : ''}`;
+      const disabled = assignedElsewhere.has(item.href);
+      return `<option value="${esc(item.href)}" ${item.href === selectedHref ? 'selected' : ''} ${disabled ? 'disabled' : ''}>${esc(label)}</option>`;
+    }).join('');
+  if (selectedHref && !moyskladStockItems.some(item => item.href === selectedHref)) {
+    externalSelect.insertAdjacentHTML(
+      'beforeend',
+      `<option value="${esc(selectedHref)}" selected>Сопоставленный товар не загружен</option>`,
+    );
+  }
+  externalSelect.disabled = moyskladStockItems.length === 0 || !localName;
+}
+
+async function saveSelectedMoyskladMapping() {
+  const localName = $('moysklad-local-name').value;
+  if (!localName || !moyskladComparison) return;
+  const assortmentHref = $('moysklad-external-item').value || null;
+  try {
+    await api('/moysklad/mappings', 'PUT', {
+      local_name: localName,
+      assortment_href: assortmentHref,
+    });
+    moyskladComparison.mappings[localName.toLocaleLowerCase()] = assortmentHref;
+    renderMoyskladComparison(moyskladComparison);
+  } catch {}
+}
+
+async function clearSelectedMoyskladMapping() {
+  const localName = $('moysklad-local-name').value;
+  if (!localName) return;
+  $('moysklad-external-item').value = '';
+  await saveSelectedMoyskladMapping();
 }
 
 // ================= БАЗА =================
 async function loadBase() {
-  const [items, lineList] = await Promise.all([api('/items'), api('/lines')]);
+  const [items, lineList, colorList] = await Promise.all([
+    api('/items'), api('/lines'), api('/product-colors'),
+  ]);
   currentItems = items;
   lines = lineList;
+  productColors = colorList;
   renderLineControls();
+  renderProductColorSettings();
   renderItems(items);
+}
+
+function productColorOptions(product, selected = '') {
+  const line = lines.find(entry => entry.name === product);
+  const allowed = line
+    ? productColors.filter(color => line.product_colors.some(name => name.toLowerCase() === color.name.toLowerCase()))
+    : productColors;
+  const currentIsAllowed = allowed.some(color => color.name.toLowerCase() === selected.toLowerCase());
+  const preserved = selected && !currentIsAllowed
+    ? `<option value="${esc(selected)}" selected>${esc(selected)} (вне списка)</option>`
+    : '';
+  const choices = allowed.map(color => {
+    const isSelected = color.name.toLowerCase() === selected.toLowerCase();
+    return `<option value="${esc(color.name)}" style="background:${colorCss(color)}" ${isSelected ? 'selected' : ''}>${esc(color.name)}</option>`;
+  }).join('');
+  const placeholder = `<option value="" ${selected ? '' : 'selected'}>— выберите цвет —</option>`;
+  return placeholder + preserved + choices;
+}
+
+function productColorCss(name) {
+  const color = productColors.find(entry => entry.name.toLowerCase() === name.toLowerCase());
+  return color ? colorCss(color) : '';
+}
+
+function setProductColorBackground(select) {
+  select.style.backgroundColor = productColorCss(select.value);
+}
+
+function renderNewItemColorOptions() {
+  const product = $('n-product').value;
+  const selected = $('n-color').value;
+  const line = lines.find(entry => entry.name === product);
+  const allowed = line
+    ? line.product_colors.some(name => name.toLowerCase() === selected.toLowerCase())
+    : productColors.some(color => color.name.toLowerCase() === selected.toLowerCase());
+  if (selected && !allowed) $('n-color').value = '';
+  $('n-color').innerHTML = productColorOptions(product, $('n-color').value);
+  setProductColorBackground($('n-color'));
 }
 
 function renderItems(items) {
@@ -1339,7 +1902,8 @@ function renderItems(items) {
     h += `<tr data-row="${it.id}" data-style-row="${it.id}" data-product="${esc(it.product)}" class="${start ? 'line-start' : ''}">
       <td><button type="button" class="drag-handle" title="Перетащить в пределах линейки" aria-label="Переместить строку">↕</button>
       <select data-f="product" class="m" style="background:${lineColor}" onchange="upd(${it.id},'product',this)">${lineOptions(it.product)}</select></td>
-      <td>${f('color', 'm')}</td><td>${f('batch', 'm')}</td>
+      <td><select data-f="color" class="m" style="background-color:${productColorCss(it.color)}" onchange="setProductColorBackground(this);upd(${it.id},'color',this)">${productColorOptions(it.product, it.color)}</select></td>
+      <td>${f('batch', 'm')}</td>
       <td>${f('date', '', 'date')}</td>
       <td><input data-f="qty" id="q${it.id}" class="s" type="number" min="0" value="${it.qty}" onchange="upd(${it.id},'qty',this)"></td>
       <td>${[1, 6, 9, 12].map(n => `<button class="quick q${n}" onclick="quick(${it.id},${n},this)">-${n}</button>`).join(' ')}</td>
@@ -1376,8 +1940,11 @@ async function addItem() {
     await api('/items', 'POST', {
       product: $('n-product').value, color: $('n-color').value, batch: $('n-batch').value,
       date: $('n-date').value || null, qty: Number($('n-qty').value) || 0 });
-    ['n-product', 'n-color', 'n-batch', 'n-qty'].forEach(i => $(i).value = '');
-    loadBase();
+    $('n-color').value = '';
+    $('n-batch').value = '';
+    $('n-qty').value = '';
+    renderNewItemColorOptions();
+    await loadBase();
   } catch {}
 }
 async function quick(id, n, button) {
@@ -1425,10 +1992,9 @@ function renderLogs(logs) {
   currentLogs = logs;
   let h = '<table data-style-table="logs" data-resize-id="logs">' +
     '<tr data-style-row="header"><th>Время</th><th>Линейка</th><th>Название</th><th>Партия</th><th>Было</th><th>Стало</th><th>Разница</th><th>Тип</th><th>Примечание</th><th></th></tr>';
-  if (!logs.length) h += '<tr data-style-row="empty"><td colspan="10" class="hint">В этом месяце записей нет</td></tr>';
   for (const l of logs) {
     if (l.kind === 'divider') {
-      h += `<tr data-style-row="${l.id}" class="row-div ${l.type === 'inventory' ? 'inv' : ''}"><td colspan="9">
+      h += `<tr data-style-row="${l.id}" data-log-row="${l.id}" class="row-div ${l.type === 'inventory' ? 'inv' : ''}"><td colspan="9">
         <input value="${esc(l.note)}" onchange="updLog(${l.id},{note:this.value},this)"></td>
         <td><button onclick="delLog(${l.id})">✕</button></td></tr>`;
       continue;
@@ -1436,20 +2002,83 @@ function renderLogs(logs) {
     const t = (field, cls) => `<input class="${cls}" value="${esc(l[field])}" onchange="updLog(${l.id},{${field}:this.value},this)">`;
     const n = field => `<input class="s" type="number" value="${l[field] ?? ''}" onchange="updLog(${l.id},{${field}:Number(this.value)},this)">`;
     const types = logTypes.includes(l.type) ? logTypes : [...logTypes, l.type];
-    h += `<tr data-style-row="${l.id}">
+    const typeClass = l.type === 'ОШИБКА МЕНЕДЖЕРА' ? 'manager-error' : '';
+    h += `<tr data-style-row="${l.id}" data-log-row="${l.id}">
       <td>${esc(fmtTs(l.ts))}</td><td>${t('product', 'm')}</td><td>${t('color', 'm')}</td><td>${t('batch', 'm')}</td>
       <td>${n('old_qty')}</td><td>${n('new_qty')}</td>
       <td class="num" id="d${l.id}">${l.diff > 0 ? '+' : ''}${l.diff}</td>
-      <td><select onchange="updLog(${l.id},{type:this.value},this)">${types.map(x => `<option ${x === l.type ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></td>
+      <td><select class="${typeClass}" onchange="this.classList.toggle('manager-error',this.value==='ОШИБКА МЕНЕДЖЕРА');updLog(${l.id},{type:this.value},this)">${types.map(x => `<option ${x === l.type ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></td>
       <td>${renderNoteCell(l)}</td>
       <td><button onclick="delLog(${l.id})">✕</button></td></tr>`;
   }
+  h += '<tr data-style-row="empty" data-journal-empty class="hidden"><td colspan="10" class="hint"></td></tr>';
   $('logs-table').innerHTML = h + '</table>';
   $('logs-table').querySelectorAll('[data-link-log]').forEach(button => {
     button.addEventListener('click', () => openLinkEditor(Number(button.dataset.linkLog)));
   });
+  applyJournalFilter();
   enhanceTables();
 }
+
+function applyJournalFilter() {
+  const query = $('journal-filter').value.trim().toLocaleLowerCase();
+  let visibleCount = 0;
+  document.querySelectorAll('#logs-table tr[data-log-row]').forEach(row => {
+    const log = currentLogs.find(entry => String(entry.id) === row.dataset.logRow);
+    if (!log) {
+      row.classList.add('hidden');
+      return;
+    }
+    const link = parseLinkNote(log.note);
+    const searchableText = [
+      log.ts, log.product, log.color, log.batch, log.old_qty, log.new_qty,
+      log.diff, log.type, log.note, link?.label, link?.url,
+    ].filter(value => value != null).join(' ').toLocaleLowerCase();
+    const matches = !query || searchableText.includes(query);
+    row.classList.toggle('hidden', !matches);
+    if (matches) visibleCount++;
+  });
+  const emptyRow = $('logs-table').querySelector('[data-journal-empty]');
+  if (emptyRow) {
+    emptyRow.classList.toggle('hidden', visibleCount > 0);
+    emptyRow.querySelector('td').textContent = currentLogs.length
+      ? 'По запросу ничего не найдено'
+      : 'В этом месяце записей нет';
+  }
+}
+
+let undoInProgress = false;
+async function undoLastChange() {
+  if (undoInProgress) return;
+  undoInProgress = true;
+  $('undo-trigger').disabled = true;
+  try {
+    const result = await api('/undo', 'POST');
+    if (!result.undone) {
+      $('undo-status').textContent = 'Нет действий для отмены.';
+      return;
+    }
+    $('undo-status').textContent = `Отменено: ${result.action}.`;
+    await Promise.all([loadBase(), loadJournal(false)]);
+  } catch (error) {
+    $('undo-status').textContent = `Не удалось отменить действие: ${error.message || 'неизвестная ошибка'}`;
+  } finally {
+    undoInProgress = false;
+    $('undo-trigger').disabled = false;
+  }
+}
+
+function initUndoShortcut() {
+  document.addEventListener('keydown', event => {
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey ||
+        event.key.toLowerCase() !== 'z') return;
+    const target = event.target;
+    if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName)) return;
+    event.preventDefault();
+    undoLastChange();
+  });
+}
+
 async function updLog(id, patch, el) {
   try {
     const r = await api('/logs/' + id, 'PUT', patch);
@@ -1480,11 +2109,18 @@ async function loadPrint() {
 }
 
 async function initialize() {
+  if (/^https?:$/.test(location.protocol)) $('api').value = location.origin;
+  $('moysklad-store').addEventListener('change', selectMoyskladStore);
+  $('color-line-target').addEventListener('change', renderProductColorAssignments);
+  $('product-color-rgb').addEventListener('input', () => previewProductColor($('product-color-rgb')));
+  $('product-color-opacity').addEventListener('input', () => previewProductColor($('product-color-opacity')));
+  previewProductColor($('product-color-rgb'));
   syncAppHeaderHeight();
   initScrollTop();
+  initUndoShortcut();
   initSettingsPopover();
   initThemeSwitcher();
-  initPalette();
+  initLineColors();
   try { savedStyles = await api('/styles'); }
   catch {}
   await reload();

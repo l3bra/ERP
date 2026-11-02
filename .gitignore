@@ -1,6 +1,8 @@
 # Local inventory data and source spreadsheets
 backend/warehouse.db
 backend/warehouse.db-*
+backend/moysklad_mappings.json
+backend/moysklad_mappings.json.tmp
 *.db
 *.sqlite
 *.sqlite3
