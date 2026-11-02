@@ -16,9 +16,11 @@ from typing import Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, validator
 
 DB_PATH = Path(__file__).parent / "warehouse.db"
+FRONTEND_PATH = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
 
 # Типы операций журнала
 T_IN = "ПРИХОД"            # добавили количество к существующей партии
@@ -325,6 +327,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 init_db()
+
+
+@app.get("/", include_in_schema=False)
+def frontend():
+    if not FRONTEND_PATH.is_file():
+        raise HTTPException(500, "Файл интерфейса frontend/index.html не найден")
+    return FileResponse(FRONTEND_PATH, media_type="text/html")
 
 
 @app.get("/meta")

@@ -14,5 +14,5 @@ __pycache__/
 .env
 .env.*
 
-# Unrelated local file
+# Local meme image (not required by the app)
 /kazino.jpg

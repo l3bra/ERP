@@ -19,4 +19,6 @@
 - The frontend is plain HTML, CSS, and JavaScript; preserve this no-build setup unless asked to change it.
 - The frontend offers four switchable visual themes; preserve theme selection in browser storage and apply themes consistently across Base, Journal, and Print.
 - Keep the title and tab navigation in the sticky app header; table coloring must not intercept clicks on interactive controls.
+- The FastAPI root URL serves `frontend/index.html`; keep `start_server.bat` and the Windows logon task server-only (do not launch a browser from auto-start).
+- Keep inventory and journal table headers sticky beneath the measured app header, and keep the scroll-to-top button hidden until the page is scrolled.
 - No automated test suite or frontend package/build configuration is currently present. Run a focused Python syntax check after backend edits and verify changed API behavior when practical.

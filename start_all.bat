@@ -3,14 +3,13 @@ setlocal
 
 for %%I in ("%~dp0.") do set "PROJECT_DIR=%%~fI"
 set "BACKEND_DIR=%PROJECT_DIR%\backend"
-set "FRONTEND_FILE=%PROJECT_DIR%\frontend\index.html"
 
 if not exist "%BACKEND_DIR%\main.py" (
     echo Missing backend\main.py next to start_all.bat.
     pause
     exit /b 1
 )
-if not exist "%FRONTEND_FILE%" (
+if not exist "%PROJECT_DIR%\frontend\index.html" (
     echo Missing frontend\index.html next to start_all.bat.
     pause
     exit /b 1
@@ -28,7 +27,8 @@ if exist "%BACKEND_DIR%\venv\Scripts\python.exe" (
     set "PYTHON=python"
 )
 
-start "ERP API" /D "%BACKEND_DIR%" "%PYTHON%" -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
-start "" "%FRONTEND_FILE%"
+start "ERP API" /D "%BACKEND_DIR%" "%PYTHON%" -m uvicorn main:app --host 127.0.0.1 --port 8000
+timeout /t 2 /nobreak >nul
+start "" "http://127.0.0.1:8000/"
 
 endlocal
