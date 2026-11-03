@@ -7,8 +7,10 @@
 
 Запуск:  uvicorn main:app --reload
 """
+import asyncio
 import gzip
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -18,8 +20,8 @@ import urllib.parse
 import urllib.request
 import uuid
 import zlib
-from contextlib import contextmanager
-from datetime import datetime
+from contextlib import asynccontextmanager, contextmanager
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -52,6 +54,7 @@ PRODUCT_COLOR_SWATCHES = (
     ("#ff69b4", 0.32), ("#00bcd4", 0.32), ("#8bc34a", 0.36),
     ("#a0a0a0", 0.34),
 )
+LOGGER = logging.getLogger(__name__)
 
 
 # ---------- БД ----------
@@ -72,7 +75,7 @@ def capture_undo_state(c) -> dict[str, dict[int, dict]]:
             row["id"]: dict(row)
             for row in c.execute(f"SELECT * FROM {table} ORDER BY id")
         }
-        for table in ("items", "logs")
+        for table in ("items", "logs", "log_note_groups", "log_note_group_entries")
     }
 
 
@@ -106,10 +109,12 @@ def restore_undo_state(c, before_state: dict):
             "id", "ts", "kind", "item_id", "product", "color", "batch",
             "old_qty", "new_qty", "diff", "type", "note",
         ),
+        "log_note_groups": ("id", "code", "url", "text"),
+        "log_note_group_entries": ("id", "group_id", "log_id", "previous_note"),
     }
     if not isinstance(before_state, dict):
         raise HTTPException(500, "История отмены имеет неверный формат")
-    for table in ("items", "logs"):
+    for table in ("items", "logs", "log_note_groups", "log_note_group_entries"):
         entries = before_state.get(table, [])
         if not isinstance(entries, list):
             raise HTTPException(500, "История отмены имеет неверный формат")
@@ -161,8 +166,24 @@ def init_db():
                 type    TEXT,                           -- тип операции / day / inventory
                 note    TEXT
             );
+            CREATE TABLE IF NOT EXISTS log_note_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT,
+                url TEXT,
+                text TEXT
+            );
+            CREATE TABLE IF NOT EXISTS log_note_group_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id INTEGER NOT NULL,
+                log_id INTEGER NOT NULL UNIQUE,
+                previous_note TEXT
+            );
             CREATE TABLE IF NOT EXISTS log_months (
                 month TEXT PRIMARY KEY                  -- 'YYYY-MM'
+            );
+            CREATE TABLE IF NOT EXISTS day_dividers (
+                day TEXT PRIMARY KEY,
+                log_id INTEGER UNIQUE
             );
             CREATE TABLE IF NOT EXISTS lines (
                 name TEXT PRIMARY KEY,
@@ -218,6 +239,7 @@ def init_db():
         ensure_item_order(c)
         ensure_product_color_display(c)
         ensure_product_colors(c)
+        ensure_daily_dividers(c)
 
 
 def now() -> str:
@@ -242,6 +264,62 @@ def ensure_months(c):
         m += 1
         if m == 13:
             y, m = y + 1, 1
+
+
+def ensure_daily_dividers(c, through: Optional[date] = None) -> list[str]:
+    """Creates one day divider for the requested date, without filling past gaps."""
+    through = through or datetime.now().date()
+    c.execute(
+        "INSERT OR IGNORE INTO day_dividers(day, log_id) "
+        "SELECT substr(ts, 1, 10), MIN(id) FROM logs "
+        "WHERE kind='divider' AND (type='day' OR note LIKE '==== НОВЫЙ ДЕНЬ%') "
+        "GROUP BY substr(ts, 1, 10)"
+    )
+    c.execute(
+        "DELETE FROM day_dividers WHERE log_id IS NULL OR NOT EXISTS "
+        "(SELECT 1 FROM logs WHERE logs.id=day_dividers.log_id)"
+    )
+    day_key = through.isoformat()
+    cursor = c.execute(
+        "INSERT OR IGNORE INTO day_dividers(day) VALUES (?)", (day_key,)
+    )
+    if cursor.rowcount == 0:
+        return []
+    label = f"==== НОВЫЙ ДЕНЬ — {through.strftime('%d.%m.%Y')} ===="
+    log_cursor = c.execute(
+        "INSERT INTO logs (ts, kind, type, note) VALUES (?, 'divider', 'day', ?)",
+        (f"{day_key}T00:00:00", label),
+    )
+    c.execute(
+        "UPDATE day_dividers SET log_id=? WHERE day=?",
+        (log_cursor.lastrowid, day_key),
+    )
+    return [day_key]
+
+
+async def daily_divider_scheduler():
+    while True:
+        current = datetime.now()
+        next_day = datetime.combine(current.date() + timedelta(days=1), datetime.min.time())
+        await asyncio.sleep(max(1, (next_day - current).total_seconds()))
+        try:
+            with db() as c:
+                ensure_daily_dividers(c)
+        except sqlite3.Error:
+            LOGGER.exception("Не удалось автоматически добавить разделитель нового дня")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    task = asyncio.create_task(daily_divider_scheduler())
+    try:
+        yield
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 def ensure_lines(c):
@@ -624,13 +702,7 @@ def get_item(c, item_id: int) -> sqlite3.Row:
 
 def log_event(c, item, old: int, new: int, type_: str, note: Optional[str] = None):
     ts = now()
-    previous = c.execute("SELECT ts FROM logs ORDER BY ts DESC, id DESC LIMIT 1").fetchone()
-    if previous and previous["ts"][:10] != ts[:10]:
-        label = f"==== НОВЫЙ ДЕНЬ — {datetime.now().strftime('%d.%m.%Y %H:%M:%S')} ===="
-        c.execute(
-            "INSERT INTO logs (ts, kind, type, note) VALUES (?, 'divider', 'day', ?)",
-            (ts, label),
-        )
+    ensure_daily_dividers(c, date.fromisoformat(ts[:10]))
     c.execute(
         """INSERT INTO logs (ts, kind, item_id, product, color, batch,
                              old_qty, new_qty, diff, type, note)
@@ -820,8 +892,29 @@ class LogUpdate(BaseModel):
         return value.strip() if value is not None else value
 
 
+class LogNoteGroupIn(BaseModel):
+    ids: list[int] = Field(min_length=2)
+    code: Optional[str] = Field(default=None, max_length=120)
+    url: Optional[str] = Field(default=None, max_length=2000)
+    text: Optional[str] = Field(default=None, max_length=1000)
+
+    @validator("code", "url", "text")
+    def strip_note_fields(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() or None if value is not None else None
+
+
+class LogNoteGroupUpdate(BaseModel):
+    code: Optional[str] = Field(default=None, max_length=120)
+    url: Optional[str] = Field(default=None, max_length=2000)
+    text: Optional[str] = Field(default=None, max_length=1000)
+
+    @validator("code", "url", "text")
+    def strip_note_fields(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() or None if value is not None else None
+
+
 # ---------- Приложение ----------
-app = FastAPI(title="Warehouse")
+app = FastAPI(title="Warehouse", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],     # локальная разработка
@@ -1311,6 +1404,7 @@ def log_months():
     """Список месяцев журнала (текущий создаётся автоматически)."""
     with db() as c:
         ensure_months(c)
+        ensure_daily_dividers(c)
         rows = c.execute(
             "SELECT month FROM log_months UNION SELECT DISTINCT substr(ts,1,7) FROM logs ORDER BY 1"
         ).fetchall()
@@ -1325,24 +1419,172 @@ def get_logs(month: Optional[str] = None):
         raise HTTPException(400, "Месяц в формате ГГГГ-ММ")
     with db() as c:
         ensure_months(c)
+        ensure_daily_dividers(c)
         rows = c.execute(
             "SELECT * FROM logs WHERE substr(ts,1,7)=? ORDER BY ts, id", (month,)
         ).fetchall()
-        return [dict(r) for r in rows]
+        groups = c.execute(
+            "SELECT e.log_id, g.id, g.code, g.url, g.text, "
+            "(SELECT COUNT(*) FROM log_note_group_entries all_entries "
+            "WHERE all_entries.group_id=g.id) AS member_count "
+            "FROM log_note_group_entries e "
+            "JOIN log_note_groups g ON g.id=e.group_id "
+            "JOIN logs l ON l.id=e.log_id WHERE substr(l.ts,1,7)=?",
+            (month,),
+        ).fetchall()
+        group_by_log = {
+            entry["log_id"]: {
+                "shared_note_group_id": entry["id"],
+                "shared_note_code": entry["code"],
+                "shared_note_url": entry["url"],
+                "shared_note_text": entry["text"],
+                "shared_note_count": entry["member_count"],
+            }
+            for entry in groups
+        }
+        return [
+            {**dict(row), **group_by_log.get(row["id"], {})}
+            for row in rows
+        ]
 
 
 @app.post("/logs/divider", status_code=201)
 def add_divider(body: Divider):
-    """Полоса «новый день» / «инвентаризация» с датой и временем вызова."""
-    title = "НОВЫЙ ДЕНЬ" if body.kind == "day" else "ИНВЕНТАРИЗАЦИЯ"
-    label = f"==== {title} — {datetime.now().strftime('%d.%m.%Y %H:%M:%S')} ===="
+    """Adds an idempotent day divider or an inventory divider."""
     with db() as c, undoable(c, "Добавление разделителя журнала"):
         ensure_months(c)
+        if body.kind == "day":
+            created = ensure_daily_dividers(c)
+            day = datetime.now().date().isoformat()
+            row = c.execute(
+                "SELECT note FROM logs WHERE id=(SELECT log_id FROM day_dividers WHERE day=?)",
+                (day,),
+            ).fetchone()
+            return {"label": row["note"], "created": bool(created)}
+        label = f"==== ИНВЕНТАРИЗАЦИЯ — {datetime.now().strftime('%d.%m.%Y %H:%M:%S')} ===="
         c.execute(
             "INSERT INTO logs (ts, kind, type, note) VALUES (?, 'divider', ?, ?)",
             (now(), body.kind, label),
         )
     return {"label": label}
+
+
+def validate_log_note_group_fields(data: dict):
+    if data.get("url"):
+        parsed_url = urllib.parse.urlparse(data["url"])
+        if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
+            raise HTTPException(400, "Ссылка должна начинаться с http:// или https://")
+    if not any(data.get(field) for field in ("code", "url", "text")):
+        raise HTTPException(400, "Укажите код, ссылку или текст примечания")
+
+
+@app.post("/logs/note-groups", status_code=201)
+def create_log_note_group(body: LogNoteGroupIn):
+    if len(set(body.ids)) != len(body.ids):
+        raise HTTPException(400, "Строки журнала выбраны несколько раз")
+    data = dump(body)
+    validate_log_note_group_fields(data)
+    with db() as c, undoable(c, "Объединение примечаний журнала"):
+        placeholders = ",".join("?" for _ in body.ids)
+        rows = c.execute(
+            f"SELECT id, kind, note FROM logs WHERE id IN ({placeholders})",
+            body.ids,
+        ).fetchall()
+        if len(rows) != len(body.ids):
+            raise HTTPException(404, "Одна или несколько строк журнала не найдены")
+        if any(row["kind"] != "move" for row in rows):
+            raise HTTPException(400, "Объединять можно только строки операций")
+
+        previous_notes = {}
+        old_group_ids = {
+            row["group_id"] for row in c.execute(
+                f"SELECT DISTINCT group_id FROM log_note_group_entries "
+                f"WHERE log_id IN ({placeholders})",
+                body.ids,
+            ).fetchall()
+        }
+        old_entries = c.execute(
+            f"SELECT log_id, previous_note FROM log_note_group_entries "
+            f"WHERE log_id IN ({placeholders})",
+            body.ids,
+        ).fetchall()
+        previous_notes.update({row["log_id"]: row["previous_note"] for row in old_entries})
+        for row in rows:
+            previous_notes.setdefault(row["id"], row["note"])
+
+        c.execute(
+            "INSERT INTO log_note_groups(code, url, text) VALUES (?, ?, ?)",
+            (data.get("code"), data.get("url"), data.get("text")),
+        )
+        group_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        c.execute(
+            f"DELETE FROM log_note_group_entries WHERE log_id IN ({placeholders})",
+            body.ids,
+        )
+        c.executemany(
+            "INSERT INTO log_note_group_entries(group_id, log_id, previous_note) "
+            "VALUES (?, ?, ?)",
+            ((group_id, log_id, previous_notes[log_id]) for log_id in body.ids),
+        )
+        for old_group_id in old_group_ids:
+            remaining = c.execute(
+                "SELECT log_id, previous_note FROM log_note_group_entries WHERE group_id=?",
+                (old_group_id,),
+            ).fetchall()
+            if len(remaining) == 1:
+                c.execute(
+                    "UPDATE logs SET note=? WHERE id=?",
+                    (remaining[0]["previous_note"], remaining[0]["log_id"]),
+                )
+                c.execute(
+                    "DELETE FROM log_note_group_entries WHERE group_id=?", (old_group_id,)
+                )
+        c.execute(
+            "DELETE FROM log_note_groups WHERE NOT EXISTS "
+            "(SELECT 1 FROM log_note_group_entries WHERE group_id=log_note_groups.id)"
+        )
+    return {"id": group_id, "ids": body.ids, **{key: data.get(key) for key in ("code", "url", "text")}}
+
+
+@app.put("/logs/note-groups/{group_id}")
+def update_log_note_group(group_id: int, body: LogNoteGroupUpdate):
+    data = dump(body)
+    if not data:
+        raise HTTPException(400, "Не указаны изменения примечания")
+    with db() as c, undoable(c, "Изменение общего примечания журнала"):
+        group = c.execute(
+            "SELECT id, code, url, text FROM log_note_groups WHERE id=?", (group_id,)
+        ).fetchone()
+        if not group:
+            raise HTTPException(404, "Общее примечание не найдено")
+        fields = {**dict(group), **data}
+        validate_log_note_group_fields(fields)
+        c.execute(
+            "UPDATE log_note_groups SET code=?, url=?, text=? WHERE id=?",
+            (fields["code"], fields["url"], fields["text"], group_id),
+        )
+    return {"id": group_id, **{key: fields[key] for key in ("code", "url", "text")}}
+
+
+@app.delete("/logs/note-groups/{group_id}")
+def delete_log_note_group(group_id: int):
+    with db() as c, undoable(c, "Разъединение примечания журнала"):
+        group = c.execute(
+            "SELECT id FROM log_note_groups WHERE id=?", (group_id,)
+        ).fetchone()
+        if not group:
+            raise HTTPException(404, "Общее примечание не найдено")
+        entries = c.execute(
+            "SELECT log_id, previous_note FROM log_note_group_entries WHERE group_id=?",
+            (group_id,),
+        ).fetchall()
+        c.executemany(
+            "UPDATE logs SET note=? WHERE id=?",
+            ((entry["previous_note"], entry["log_id"]) for entry in entries),
+        )
+        c.execute("DELETE FROM log_note_group_entries WHERE group_id=?", (group_id,))
+        c.execute("DELETE FROM log_note_groups WHERE id=?", (group_id,))
+    return {"ok": True}
 
 
 @app.put("/logs/{log_id}")
@@ -1356,6 +1598,10 @@ def update_log(log_id: int, body: LogUpdate):
         if row["kind"] == "divider":
             allowed = {k: v for k, v in data.items() if k == "note" and v is not None}
         else:
+            if "note" in data and c.execute(
+                "SELECT 1 FROM log_note_group_entries WHERE log_id=?", (log_id,)
+            ).fetchone():
+                raise HTTPException(400, "Измените общее примечание всей группы")
             allowed = {k: v for k, v in data.items()
                        if k in ("product", "color", "batch", "old_qty", "new_qty", "type", "note")
                        and (v is not None or k == "note")}
@@ -1377,6 +1623,28 @@ def delete_log(log_id: int):
     with db() as c, undoable(c, "Удаление записи журнала"):
         if not c.execute("SELECT 1 FROM logs WHERE id=?", (log_id,)).fetchone():
             raise HTTPException(404, "Запись не найдена")
+        group = c.execute(
+            "SELECT group_id FROM log_note_group_entries WHERE log_id=?", (log_id,)
+        ).fetchone()
+        c.execute("DELETE FROM log_note_group_entries WHERE log_id=?", (log_id,))
+        if group:
+            remaining = c.execute(
+                "SELECT log_id, previous_note FROM log_note_group_entries WHERE group_id=?",
+                (group["group_id"],),
+            ).fetchall()
+            if len(remaining) == 1:
+                c.execute(
+                    "UPDATE logs SET note=? WHERE id=?",
+                    (remaining[0]["previous_note"], remaining[0]["log_id"]),
+                )
+                c.execute(
+                    "DELETE FROM log_note_group_entries WHERE group_id=?",
+                    (group["group_id"],),
+                )
+            if len(remaining) <= 1:
+                c.execute(
+                    "DELETE FROM log_note_groups WHERE id=?", (group["group_id"],)
+                )
         c.execute("DELETE FROM logs WHERE id=?", (log_id,))
     return {"ok": True}
 

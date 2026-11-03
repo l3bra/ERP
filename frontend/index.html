@@ -49,6 +49,49 @@
   .note-cell { display: flex; gap: 4px; align-items: center; }
   .note-cell input { min-width: 80px; width: 100%; }
   .note-link { overflow-wrap: anywhere; }
+  .journal-selection-bar {
+    display: none;
+    margin: 8px 0;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .journal-selection-bar.visible { display: block; }
+  .journal-selection-bar button { margin: 2px 4px; }
+  .journal-row-select { width: 16px; }
+  .shared-note-cell { min-width: 220px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+  .shared-note-box { display: grid; gap: 4px; }
+  .shared-note-badge { color: var(--muted); font-size: 11px; font-weight: 700; }
+  .shared-note-actions { margin-top: 5px; }
+  .shared-note-actions button { margin-right: 5px; }
+  .note-group-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 14px;
+    background: rgba(0, 0, 0, .45);
+  }
+  .note-group-overlay.hidden { display: none; }
+  .note-group-panel {
+    width: min(460px, calc(100vw - 28px));
+    max-height: calc(100vh - 28px);
+    overflow: auto;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    text-align: left;
+    box-shadow: var(--shadow);
+  }
+  .note-group-panel label { display: block; margin: 10px 0; }
+  .note-group-panel input, .note-group-panel textarea { display: block; width: 100%; margin-top: 4px; }
+  .note-group-panel textarea { min-height: 90px; resize: vertical; }
+  .note-group-actions { text-align: right; }
+  .note-group-error { min-height: 1.3em; color: #b00; }
   body #logs-table select.manager-error {
     background: color-mix(in srgb, #f04444 24%, var(--control-bg));
     border-color: #d64545;
@@ -755,6 +798,7 @@
     #print .resize-col, #print .resize-row { display: none !important; }
     .scroll-top { display: none !important; }
     dialog { display: none !important; }
+    .note-group-overlay { display: none !important; }
   }
 </style>
 </head>
@@ -822,6 +866,11 @@
     <span class="hint">Правка строк журнала меняет только запись, остатки в Базе не затрагиваются.</span>
   </div>
   <div class="sub" id="months"></div>
+  <div id="journal-selection-bar" class="journal-selection-bar no-print" role="group" aria-label="Действия с выбранными строками журнала">
+    <span id="journal-selection-count">Выбрано: 0</span>
+    <button id="journal-merge-button" type="button" onclick="editOrMergeSelectedNotes()">Объединить примечание</button>
+    <button id="journal-unmerge-button" type="button" onclick="unmergeSelectedNoteGroup()" disabled>Разъединить примечание</button>
+  </div>
   <div id="logs-table" class="table-wrap"></div>
 </section>
 
@@ -925,11 +974,33 @@
     </div>
   </form>
 </dialog>
+<div id="note-group-overlay" class="note-group-overlay hidden">
+  <div class="note-group-panel" role="dialog" aria-modal="true" aria-labelledby="note-group-title">
+    <h3 id="note-group-title">Общее примечание</h3>
+    <p id="note-group-description" class="hint">Одно примечание будет показано для всех выбранных операций.</p>
+    <label>Код документа
+      <input id="note-group-code" maxlength="120" placeholder="Например, РН-004281">
+    </label>
+    <label>Ссылка на документ
+      <input id="note-group-url" type="url" maxlength="2000" placeholder="https://...">
+    </label>
+    <label>Текст примечания
+      <textarea id="note-group-text" maxlength="1000" placeholder="Краткое примечание"></textarea>
+    </label>
+    <div id="note-group-error" class="note-group-error" role="alert"></div>
+    <div class="note-group-actions">
+      <button type="button" onclick="closeNoteGroupDialog()">Отмена</button>
+      <button id="note-group-save" type="button" onclick="saveNoteGroup()">Объединить</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
-const base = () => ($('api').value.trim() ||
-  (/^https?:$/.test(location.protocol) ? location.origin : 'http://127.0.0.1:8000')).replace(/\/$/, '');
+const defaultApi = () => /^https?:$/.test(location.protocol)
+  ? `${location.protocol}//${location.hostname}:8000`
+  : 'http://127.0.0.1:8000';
+const base = () => ($('api').value.trim() || defaultApi()).replace(/\/$/, '');
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const DEFAULT_TYPES = ['ПРИХОД','РАСХОД','НОВАЯ ПАРТИЯ','КОРРЕКЦИЯ','ПРАВКА','УДАЛЕНИЕ'];
 const COLORS = [
@@ -949,6 +1020,8 @@ let moyskladSnapshotRows = [];
 let moyskladLastUpdatedAt = null;
 const LINK_NOTE_PREFIX = '[[ERP_LINK_V1]]';
 let editingLinkLogId = null;
+let editingNoteGroupId = null;
+let selectedNoteGroupLogIds = [];
 function setTheme(theme, persist = true) {
   if (!THEMES.includes(theme)) return;
   document.body.dataset.theme = theme;
@@ -1071,11 +1144,19 @@ function cellColor(table, row, column) {
 
 function applyTableStyles(table) {
   const tableName = table.dataset.styleTable;
+  const occupiedUntil = new Map();
   table.querySelectorAll('tr').forEach((tr, rowIndex) => {
     if (!tr.dataset.styleRow) tr.dataset.styleRow = `row-${rowIndex}`;
-    [...tr.cells].forEach((cell, columnIndex) => {
+    let columnIndex = 0;
+    [...tr.cells].forEach(cell => {
+      while ((occupiedUntil.get(columnIndex) ?? -1) >= rowIndex) columnIndex++;
       cell.dataset.styleCol = String(columnIndex);
       cell.style.backgroundColor = cellColor(tableName, tr.dataset.styleRow, String(columnIndex));
+      const lastRow = rowIndex + cell.rowSpan - 1;
+      for (let span = 0; span < cell.colSpan; span++) {
+        occupiedUntil.set(columnIndex + span, lastRow);
+      }
+      columnIndex += cell.colSpan;
     });
   });
 }
@@ -1991,50 +2072,120 @@ function pickMonth(m) { month = m; loadJournal(true); }
 function renderLogs(logs) {
   currentLogs = logs;
   let h = '<table data-style-table="logs" data-resize-id="logs">' +
-    '<tr data-style-row="header"><th>Время</th><th>Линейка</th><th>Название</th><th>Партия</th><th>Было</th><th>Стало</th><th>Разница</th><th>Тип</th><th>Примечание</th><th></th></tr>';
+    '<tr data-style-row="header"><th>Время</th><th>Линейка</th><th>Название</th><th>Партия</th><th>Было</th><th>Стало</th><th>Разница</th><th>Тип</th><th>Примечание</th><th></th><th><input id="journal-select-all" type="checkbox" aria-label="Выбрать все видимые операции"></th></tr>';
+  const groupedLogs = new Map();
+  for (const log of logs) {
+    if (!log.shared_note_group_id) continue;
+    if (!groupedLogs.has(log.shared_note_group_id)) groupedLogs.set(log.shared_note_group_id, []);
+    groupedLogs.get(log.shared_note_group_id).push(log);
+  }
+  const renderedGroups = new Set();
   for (const l of logs) {
     if (l.kind === 'divider') {
       h += `<tr data-style-row="${l.id}" data-log-row="${l.id}" class="row-div ${l.type === 'inventory' ? 'inv' : ''}"><td colspan="9">
         <input value="${esc(l.note)}" onchange="updLog(${l.id},{note:this.value},this)"></td>
-        <td><button onclick="delLog(${l.id})">✕</button></td></tr>`;
+        <td><button onclick="delLog(${l.id})">✕</button></td><td></td></tr>`;
       continue;
     }
-    const t = (field, cls) => `<input class="${cls}" value="${esc(l[field])}" onchange="updLog(${l.id},{${field}:this.value},this)">`;
-    const n = field => `<input class="s" type="number" value="${l[field] ?? ''}" onchange="updLog(${l.id},{${field}:Number(this.value)},this)">`;
-    const types = logTypes.includes(l.type) ? logTypes : [...logTypes, l.type];
-    const typeClass = l.type === 'ОШИБКА МЕНЕДЖЕРА' ? 'manager-error' : '';
-    h += `<tr data-style-row="${l.id}" data-log-row="${l.id}">
-      <td>${esc(fmtTs(l.ts))}</td><td>${t('product', 'm')}</td><td>${t('color', 'm')}</td><td>${t('batch', 'm')}</td>
-      <td>${n('old_qty')}</td><td>${n('new_qty')}</td>
-      <td class="num" id="d${l.id}">${l.diff > 0 ? '+' : ''}${l.diff}</td>
-      <td><select class="${typeClass}" onchange="this.classList.toggle('manager-error',this.value==='ОШИБКА МЕНЕДЖЕРА');updLog(${l.id},{type:this.value},this)">${types.map(x => `<option ${x === l.type ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></td>
-      <td>${renderNoteCell(l)}</td>
-      <td><button onclick="delLog(${l.id})">✕</button></td></tr>`;
+    if (l.shared_note_group_id) {
+      const groupId = l.shared_note_group_id;
+      if (renderedGroups.has(groupId)) continue;
+      renderedGroups.add(groupId);
+      const members = groupedLogs.get(groupId) || [l];
+      members.forEach((member, index) => {
+        h += renderLogRow(member, index === 0
+          ? renderSharedNoteCell(member, members.length)
+          : '');
+      });
+      continue;
+    }
+    h += renderLogRow(l, `<td>${renderNoteCell(l)}</td>`);
   }
-  h += '<tr data-style-row="empty" data-journal-empty class="hidden"><td colspan="10" class="hint"></td></tr>';
+  h += '<tr data-style-row="empty" data-journal-empty class="hidden"><td colspan="11" class="hint"></td></tr>';
   $('logs-table').innerHTML = h + '</table>';
   $('logs-table').querySelectorAll('[data-link-log]').forEach(button => {
     button.addEventListener('click', () => openLinkEditor(Number(button.dataset.linkLog)));
   });
+  $('logs-table').querySelectorAll('[data-edit-note-group]').forEach(button => {
+    button.addEventListener('click', () => openNoteGroupDialog(Number(button.dataset.editNoteGroup)));
+  });
+  $('logs-table').querySelectorAll('[data-unmerge-note-group]').forEach(button => {
+    button.addEventListener('click', () => unmergeNoteGroup(Number(button.dataset.unmergeNoteGroup)));
+  });
+  $('logs-table').querySelectorAll('[data-log-select]').forEach(input => {
+    input.addEventListener('change', updateJournalSelection);
+  });
+  $('journal-select-all').addEventListener('change', event => {
+    $('logs-table').querySelectorAll('tr[data-log-row]:not(.hidden) [data-log-select]')
+      .forEach(input => { input.checked = event.target.checked; });
+    updateJournalSelection();
+  });
+  $('note-group-overlay').onclick = event => {
+    if (event.target === $('note-group-overlay')) closeNoteGroupDialog();
+  };
   applyJournalFilter();
   enhanceTables();
 }
 
+function renderLogRow(log, noteCell) {
+  const t = (field, cls) => `<input class="${cls}" value="${esc(log[field])}" onchange="updLog(${log.id},{${field}:this.value},this)">`;
+  const n = field => `<input class="s" type="number" value="${log[field] ?? ''}" onchange="updLog(${log.id},{${field}:Number(this.value)},this)">`;
+  const types = logTypes.includes(log.type) ? logTypes : [...logTypes, log.type];
+  const typeClass = log.type === 'ОШИБКА МЕНЕДЖЕРА' ? 'manager-error' : '';
+  return `<tr data-style-row="${log.id}" data-log-row="${log.id}">
+    <td>${esc(fmtTs(log.ts))}</td><td>${t('product', 'm')}</td><td>${t('color', 'm')}</td><td>${t('batch', 'm')}</td>
+    <td>${n('old_qty')}</td><td>${n('new_qty')}</td>
+    <td class="num" id="d${log.id}">${log.diff > 0 ? '+' : ''}${log.diff}</td>
+    <td><select class="${typeClass}" onchange="this.classList.toggle('manager-error',this.value==='ОШИБКА МЕНЕДЖЕРА');updLog(${log.id},{type:this.value},this)">${types.map(x => `<option ${x === log.type ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></td>
+    ${noteCell || ''}
+    <td><button onclick="delLog(${log.id})">✕</button></td>
+    <td><input class="journal-row-select" type="checkbox" data-log-select value="${log.id}" aria-label="Выбрать строку ${log.id}"></td></tr>`;
+}
+
+function renderSharedNoteCell(log, memberCount) {
+  const code = log.shared_note_code ? `<b>${esc(log.shared_note_code)}</b>` : '';
+  const text = log.shared_note_text ? `<span>${esc(log.shared_note_text)}</span>` : '';
+  const url = log.shared_note_url
+    ? `<a class="note-link" href="${esc(log.shared_note_url)}" target="_blank" rel="noopener noreferrer">Открыть ссылку ↗</a>`
+    : '';
+  const totalCount = log.shared_note_count || memberCount;
+  return `<td class="shared-note-cell" rowspan="${memberCount}">
+    <div class="shared-note-box"><span class="shared-note-badge">Общее примечание · для ${totalCount} операций</span>${code}${text}${url}
+      <div class="shared-note-actions">
+        <button type="button" data-edit-note-group="${log.shared_note_group_id}">Изменить</button>
+        <button type="button" data-unmerge-note-group="${log.shared_note_group_id}">Разъединить</button>
+      </div>
+    </div>
+  </td>`;
+}
+
 function applyJournalFilter() {
   const query = $('journal-filter').value.trim().toLocaleLowerCase();
-  let visibleCount = 0;
-  document.querySelectorAll('#logs-table tr[data-log-row]').forEach(row => {
-    const log = currentLogs.find(entry => String(entry.id) === row.dataset.logRow);
-    if (!log) {
-      row.classList.add('hidden');
-      return;
-    }
+  const logById = new Map(currentLogs.map(log => [String(log.id), log]));
+  const groupMatches = new Map();
+  const matchesQuery = log => {
     const link = parseLinkNote(log.note);
     const searchableText = [
       log.ts, log.product, log.color, log.batch, log.old_qty, log.new_qty,
       log.diff, log.type, log.note, link?.label, link?.url,
+      log.shared_note_code, log.shared_note_text, log.shared_note_url,
     ].filter(value => value != null).join(' ').toLocaleLowerCase();
-    const matches = !query || searchableText.includes(query);
+    return !query || searchableText.includes(query);
+  };
+  for (const log of currentLogs) {
+    if (!log.shared_note_group_id) continue;
+    if (matchesQuery(log)) groupMatches.set(log.shared_note_group_id, true);
+  }
+  let visibleCount = 0;
+  document.querySelectorAll('#logs-table tr[data-log-row]').forEach(row => {
+    const log = logById.get(row.dataset.logRow);
+    if (!log) {
+      row.classList.add('hidden');
+      return;
+    }
+    const matches = log.shared_note_group_id
+      ? !query || groupMatches.has(log.shared_note_group_id)
+      : matchesQuery(log);
     row.classList.toggle('hidden', !matches);
     if (matches) visibleCount++;
   });
@@ -2045,6 +2196,127 @@ function applyJournalFilter() {
       ? 'По запросу ничего не найдено'
       : 'В этом месяце записей нет';
   }
+  updateJournalSelection();
+}
+
+function selectedJournalLogs() {
+  const selectedIds = new Set([...document.querySelectorAll('[data-log-select]:checked')]
+    .map(input => Number(input.value)));
+  return currentLogs.filter(log => selectedIds.has(log.id));
+}
+
+function updateJournalSelection() {
+  const selected = selectedJournalLogs();
+  const groupIds = new Set(selected.map(log => log.shared_note_group_id).filter(Boolean));
+  const canEditGroup = selected.length > 0 && selected.every(log =>
+    log.shared_note_group_id && log.shared_note_group_id === selected[0].shared_note_group_id);
+  $('journal-selection-count').textContent = `Выбрано: ${selected.length}`;
+  $('journal-selection-bar').classList.toggle('visible', selected.length > 0);
+  $('journal-merge-button').textContent = canEditGroup
+    ? 'Изменить общее примечание'
+    : 'Объединить примечание';
+  $('journal-merge-button').disabled = selected.length < 2 && !canEditGroup;
+  $('journal-unmerge-button').disabled = groupIds.size !== 1;
+  const visibleChecks = [...document.querySelectorAll('#logs-table tr[data-log-row]:not(.hidden) [data-log-select]')];
+  const selectAll = $('journal-select-all');
+  if (selectAll) {
+    selectAll.checked = visibleChecks.length > 0 && visibleChecks.every(input => input.checked);
+    selectAll.indeterminate = visibleChecks.some(input => input.checked) && !selectAll.checked;
+  }
+}
+
+function editOrMergeSelectedNotes() {
+  const selected = selectedJournalLogs();
+  if (!selected.length) return;
+  const groupIds = new Set(selected.map(log => log.shared_note_group_id).filter(Boolean));
+  if (groupIds.size === 1 && selected.every(log => log.shared_note_group_id)) {
+    openNoteGroupDialog([...groupIds][0]);
+    return;
+  }
+  if (selected.length >= 2) openNoteGroupDialog();
+}
+
+function openNoteGroupDialog(groupId = null) {
+  editingNoteGroupId = groupId;
+  selectedNoteGroupLogIds = selectedJournalLogs().map(log => log.id);
+  const existing = groupId
+    ? currentLogs.find(log => log.shared_note_group_id === groupId)
+    : null;
+  $('note-group-code').value = existing?.shared_note_code || '';
+  $('note-group-url').value = existing?.shared_note_url || '';
+  $('note-group-text').value = existing?.shared_note_text || '';
+  $('note-group-title').textContent = groupId ? 'Изменить общее примечание' : 'Общее примечание';
+  $('note-group-description').textContent = groupId
+    ? 'Изменения применятся ко всем строкам этой группы.'
+    : `Одно примечание будет показано для ${selectedNoteGroupLogIds.length} выбранных операций.`;
+  $('note-group-save').textContent = groupId ? 'Сохранить' : 'Объединить';
+  $('note-group-error').textContent = '';
+  $('note-group-overlay').classList.remove('hidden');
+  $('note-group-code').focus();
+}
+
+function closeNoteGroupDialog() {
+  $('note-group-overlay').classList.add('hidden');
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !$('note-group-overlay').classList.contains('hidden')) {
+    closeNoteGroupDialog();
+  }
+});
+
+async function saveNoteGroup() {
+  const code = $('note-group-code').value.trim() || null;
+  let url = $('note-group-url').value.trim();
+  const text = $('note-group-text').value.trim() || null;
+  if (!code && !url && !text) {
+    $('note-group-error').textContent = 'Заполните код, ссылку или текст примечания.';
+    return;
+  }
+  if (url) {
+    if (!/^[a-z][a-z\d+.-]*:/i.test(url)) url = 'https://' + url;
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
+      url = parsed.href;
+    } catch {
+      $('note-group-error').textContent = 'Введите корректную ссылку (http или https).';
+      return;
+    }
+  }
+  const button = $('note-group-save');
+  button.disabled = true;
+  try {
+    const data = {code, url: url || null, text};
+    if (editingNoteGroupId) {
+      await api('/logs/note-groups/' + editingNoteGroupId, 'PUT', data);
+    } else {
+      if (selectedNoteGroupLogIds.length < 2) {
+        $('note-group-error').textContent = 'Выберите не менее двух строк журнала.';
+        return;
+      }
+      await api('/logs/note-groups', 'POST', {ids: selectedNoteGroupLogIds, ...data});
+    }
+    closeNoteGroupDialog();
+    await loadJournal(false);
+  } catch (error) {
+    $('note-group-error').textContent = error.message || 'Не удалось сохранить примечание.';
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function unmergeNoteGroup(groupId) {
+  try {
+    await api('/logs/note-groups/' + groupId, 'DELETE');
+    await loadJournal(false);
+  } catch {}
+}
+
+async function unmergeSelectedNoteGroup() {
+  const selected = selectedJournalLogs();
+  const groupIds = new Set(selected.map(log => log.shared_note_group_id).filter(Boolean));
+  if (groupIds.size === 1) await unmergeNoteGroup([...groupIds][0]);
 }
 
 let undoInProgress = false;
@@ -2109,7 +2381,7 @@ async function loadPrint() {
 }
 
 async function initialize() {
-  if (/^https?:$/.test(location.protocol)) $('api').value = location.origin;
+  $('api').value = defaultApi();
   $('moysklad-store').addEventListener('change', selectMoyskladStore);
   $('color-line-target').addEventListener('change', renderProductColorAssignments);
   $('product-color-rgb').addEventListener('input', () => previewProductColor($('product-color-rgb')));

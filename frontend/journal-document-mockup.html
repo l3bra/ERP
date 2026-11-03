@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Макет журнала — общее примечание</title>
+<style>
+  :root { color-scheme: light; --ink:#1b2535; --muted:#718096; --line:#e3e8ef; --paper:#fff; --canvas:#f3f5f8; --accent:#e84343; --blue:#2874c8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--canvas); color:var(--ink); font:14px/1.45 system-ui,sans-serif; }
+  button,input,textarea { font:inherit; }
+  button { cursor:pointer; }
+  .page { max-width:1180px; margin:0 auto; padding:28px 24px 60px; }
+  .topline { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:22px; }
+  h1 { margin:0; font-size:25px; letter-spacing:-.03em; }
+  .subtitle { color:var(--muted); margin-top:5px; }
+  .demo-label { display:inline-flex; gap:7px; align-items:center; padding:7px 11px; border:1px solid #f0c9c6; border-radius:999px; background:#fff0ef; color:#a5312e; font-weight:650; white-space:nowrap; }
+  .demo-label::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--accent); }
+  .card { background:var(--paper); border:1px solid var(--line); border-radius:14px; box-shadow:0 8px 26px #25324a0a; overflow:hidden; }
+  .toolbar { min-height:60px; padding:12px 16px; display:flex; gap:10px; align-items:center; border-bottom:1px solid var(--line); }
+  .month { font-weight:700; margin-right:auto; }
+  .button { border:1px solid #d5dce6; color:var(--ink); background:#fff; border-radius:8px; padding:8px 12px; font-weight:620; }
+  .button:hover { background:#f7f9fc; }
+  .button.primary { border-color:var(--accent); background:var(--accent); color:#fff; }
+  .button.primary:hover { background:#d63838; }
+  .button:disabled { cursor:not-allowed; opacity:.48; }
+  .selection-bar { display:none; align-items:center; gap:10px; padding:10px 16px; background:#f1f7ff; border-bottom:1px solid #dceaff; color:#244b7a; }
+  .selection-bar.visible { display:flex; }
+  .selection-bar strong { margin-right:auto; }
+  .table-scroll { overflow-x:auto; }
+  table { width:100%; min-width:850px; border-collapse:collapse; }
+  th { padding:11px 12px; background:#f8f9fb; color:#66748a; text-align:left; font-size:11px; letter-spacing:.055em; text-transform:uppercase; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td { padding:12px; border-bottom:1px solid #edf0f4; vertical-align:middle; }
+  tr:last-child td { border-bottom:0; }
+  .check-cell { width:42px; text-align:center; }
+  input[type="checkbox"] { width:16px; height:16px; accent-color:var(--accent); vertical-align:middle; cursor:pointer; }
+  .date { white-space:nowrap; color:#536176; font-variant-numeric:tabular-nums; }
+  .item strong { display:block; font-size:13px; }
+  .item small { display:block; color:var(--muted); margin-top:2px; }
+  .qty { font-variant-numeric:tabular-nums; font-weight:700; white-space:nowrap; }
+  .qty.negative { color:#c83d38; }
+  .type { display:inline-block; border-radius:5px; padding:3px 7px; font-size:11px; font-weight:700; background:#fff0ee; color:#ba3833; white-space:nowrap; }
+  .type.income { background:#eaf7ed; color:#39824c; }
+  .note-cell { min-width:220px; }
+  .note-empty { color:#a2acba; }
+  .note-code { color:#536176; font-weight:650; }
+  .note-link { color:var(--blue); text-decoration:none; overflow-wrap:anywhere; }
+  .note-link:hover { text-decoration:underline; }
+  .note-sub { margin-top:3px; color:#8793a4; font-size:11px; }
+  .merged-note { background:#f4f8ff; }
+  .merged-note-cell { min-width:250px; padding:10px 12px; background:#f4f8ff; border-left:1px solid #dce7f5; }
+  .merged-note-box { display:flex; flex-direction:column; gap:5px; }
+  .merged-badge { display:inline-flex; align-self:flex-start; align-items:center; gap:5px; padding:2px 7px; border-radius:5px; background:#e3edfb; color:#42678f; font-size:10px; font-weight:750; letter-spacing:.04em; text-transform:uppercase; }
+  .merged-title { font-weight:700; color:#293a51; }
+  .merged-note-actions { display:flex; gap:8px; align-items:center; margin-top:3px; }
+  .link-out { color:var(--blue); text-decoration:none; font-size:12px; font-weight:650; }
+  .link-out:hover { text-decoration:underline; }
+  .text-action { padding:0; border:0; background:transparent; color:#718096; font-size:12px; text-decoration:underline; text-underline-offset:2px; }
+  .text-action:hover { color:#36465c; }
+  .selection-hint { color:var(--muted); padding:12px 17px; border-top:1px solid var(--line); font-size:12px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--muted); margin:14px 3px; font-size:12px; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .legend i { width:9px; height:9px; display:inline-block; border-radius:3px; background:#dceaff; }
+  .legend .red { background:#ffd9d6; }
+  .legend .green { background:#d9f0df; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translate(-50%,20px); opacity:0; pointer-events:none; padding:10px 15px; border-radius:9px; background:#202b3c; color:#fff; transition:.2s ease; box-shadow:0 6px 24px #17203330; }
+  .toast.visible { opacity:1; transform:translate(-50%,0); }
+  .modal-overlay { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:14px; background:#18233770; backdrop-filter:blur(2px); }
+  .modal-overlay[hidden] { display:none; }
+  .modal-panel { width:min(480px,calc(100vw - 28px)); max-height:calc(100vh - 28px); overflow-y:auto; border:1px solid var(--line); border-radius:14px; padding:0; background:#fff; box-shadow:0 24px 80px #15223835; color:var(--ink); }
+  .dialog-head { padding:20px 22px 14px; border-bottom:1px solid var(--line); }
+  .dialog-head h2 { margin:0; font-size:19px; }
+  .dialog-head p { margin:5px 0 0; color:var(--muted); font-size:13px; }
+  .dialog-body { padding:18px 22px 22px; }
+  .field { display:block; margin:0 0 14px; font-weight:650; font-size:13px; }
+  .field input,.field textarea { display:block; width:100%; margin-top:6px; padding:9px 10px; border:1px solid #d5dce6; border-radius:8px; outline:none; }
+  .field input { height:39px; }
+  .field textarea { min-height:88px; resize:vertical; }
+  .field input:focus,.field textarea:focus { border-color:#7aa8df; box-shadow:0 0 0 3px #dceaff; }
+  .dialog-preview { margin:2px 0 18px; padding:12px; border-radius:9px; background:#f6f8fb; color:#68778c; font-size:12px; }
+  .dialog-preview strong { color:#39475d; }
+  .dialog-actions { display:flex; justify-content:flex-end; gap:8px; }
+  @media(max-width:640px) {
+    .page { padding:20px 12px 40px; }
+    .topline { display:block; }
+    .demo-label { margin-top:12px; }
+    .toolbar { flex-wrap:wrap; }
+    .month { flex-basis:100%; }
+    .selection-bar { flex-wrap:wrap; }
+    .selection-bar strong { flex-basis:100%; }
+    .selection-bar .button { flex:1; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="topline">
+    <div>
+      <h1>Журнал операций</h1>
+      <div class="subtitle">Макет объединения примечания в общую ячейку</div>
+    </div>
+    <span class="demo-label">ТЕСТОВАЯ СТРАНИЦА · ДАННЫЕ НЕ СОХРАНЯЮТСЯ</span>
+  </div>
+  <section class="card" aria-label="Демонстрационный журнал">
+    <div class="toolbar">
+      <span class="month">Ноябрь 2026</span>
+      <button class="button quiet" type="button" id="reset-demo">Сбросить пример</button>
+    </div>
+    <div class="selection-bar" id="selection-bar">
+      <strong id="selection-count">Выбрано: 0</strong>
+      <button class="button primary" id="merge-button" type="button">Объединить примечание</button>
+      <button class="button" id="unmerge-button" type="button" disabled>Разъединить</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="check-cell"><input id="select-all" type="checkbox" aria-label="Выбрать все строки"></th>
+            <th>Время</th><th>Позиция</th><th>Партия</th><th>Изменение</th><th>Тип</th><th>Примечание</th>
+          </tr>
+        </thead>
+        <tbody id="journal-rows"></tbody>
+      </table>
+    </div>
+    <div class="selection-hint">Отметьте несколько операций и задайте примечание один раз. В демо не соседние строки собраны в отдельный визуальный блок, а каждая операция сохранена отдельно.</div>
+  </section>
+  <div class="legend">
+    <span><i></i> Общая ячейка примечания</span>
+    <span><i class="red"></i> Расход по строке</span>
+    <span><i class="green"></i> Приход по строке</span>
+  </div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<div class="modal-overlay" id="note-dialog" hidden>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="note-dialog-title" id="note-form">
+    <div class="dialog-head">
+      <h2 id="note-dialog-title">Общее примечание</h2>
+      <p>Одна ячейка примечания будет относиться ко всем выбранным строкам.</p>
+    </div>
+    <div class="dialog-body">
+      <label class="field">Код документа
+        <input id="note-code" maxlength="120" placeholder="Например, РН-004281">
+      </label>
+      <label class="field">Ссылка на документ
+        <input id="note-url" type="url" placeholder="https://...">
+      </label>
+      <label class="field">Текст примечания
+        <textarea id="note-text" maxlength="1000" placeholder="Например: списание по накладной, передано в цех"></textarea>
+      </label>
+      <div class="dialog-preview"><strong id="preview-code">Код документа</strong><br><span id="preview-body">В ячейке будет показано одно общее примечание для выбранных операций.</span></div>
+      <div id="note-error" role="alert" style="display:none;margin:-8px 0 12px;color:#b42318;font-size:12px"></div>
+      <div class="dialog-actions">
+        <button class="button" type="button" id="cancel-dialog" onclick="closeNoteDialog(event)">Отмена</button>
+        <button class="button primary" type="button" id="confirm-merge" onclick="mergeSelectedNotes(event)">Объединить</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const initialRows = [
+  {id:1,time:'03.11.2026 08:42:11',product:'Standart red',line:'Standart',batch:'SR-241',change:'-6',type:'РАСХОД'},
+  {id:2,time:'03.11.2026 08:42:12',product:'Simple black',line:'Simple',batch:'SB-118',change:'-2',type:'РАСХОД'},
+  {id:3,time:'03.11.2026 08:43:06',product:'HT',line:'HT',batch:'HT-077',change:'-1',type:'РАСХОД'},
+  {id:4,time:'03.11.2026 09:03:28',product:'Flex',line:'Flex',batch:'FL-302',change:'-3',type:'РАСХОД'},
+  {id:5,time:'03.11.2026 09:16:50',product:'Standart Gray',line:'Standart',batch:'SG-190',change:'+12',type:'ПРИХОД'},
+];
+let rows = structuredClone(initialRows);
+const $ = id => document.getElementById(id);
+const esc = value => String(value).replace(/[&<>"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+const selectedIds = () => [...document.querySelectorAll('.row-check:checked')].map(input => Number(input.value));
+function renderNote(note) {
+  if (!note) return '<span class="note-empty">—</span>';
+  const code = note.code ? `<span class="note-code">${esc(note.code)}</span>` : '';
+  const url = note.url ? `<a class="note-link" href="${esc(note.url)}" target="_blank" rel="noopener noreferrer">Открыть ссылку ↗</a>` : '';
+  const text = note.text ? `<div>${esc(note.text)}</div>` : '';
+  return `<div class="merged-note-box"><span class="merged-badge">Общее примечание</span>${code}${text}${url}<span class="note-sub">Для ${note.count} выбранных операций</span></div>`;
+}
+function render() {
+  const mergedNotes = new Map();
+  for (const row of rows) {
+    if (row.note?.groupId) {
+      if (!mergedNotes.has(row.note.groupId)) mergedNotes.set(row.note.groupId,{note:row.note,ids:[]});
+      mergedNotes.get(row.note.groupId).ids.push(row.id);
+    }
+  }
+  const rendered = new Set();
+  let html = '';
+  for (const row of rows) {
+    const groupId = row.note?.groupId;
+    if (!groupId) {
+      html += renderOperation(row);
+      continue;
+    }
+    if (rendered.has(groupId)) continue;
+    rendered.add(groupId);
+    const group = mergedNotes.get(groupId);
+    const rowById = new Map(rows.map(item => [item.id,item]));
+    const members = group.ids.map(id => rowById.get(id));
+    html += `<tr class="merged-note"><td class="check-cell"><input class="row-check" type="checkbox" value="${row.id}" aria-label="Выбрать строку ${row.id}"></td>${renderOperationCells(row)}
+      <td class="merged-note-cell" rowspan="${members.length}">${renderNote(group.note)}
+        <div class="merged-note-actions"><button class="text-action" type="button" data-edit-group="${esc(groupId)}">Изменить</button><button class="text-action" type="button" data-unmerge-group="${esc(groupId)}">Разъединить</button></div>
+      </td></tr>`;
+    for (const member of members.slice(1)) {
+      html += `<tr class="merged-note"><td class="check-cell"><input class="row-check" type="checkbox" value="${member.id}" aria-label="Выбрать строку ${member.id}"></td>${renderOperationCells(member)}</tr>`;
+    }
+  }
+  $('journal-rows').innerHTML = html;
+  document.querySelectorAll('[data-edit-group]').forEach(button => button.addEventListener('click', () => openDialog(button.dataset.editGroup)));
+  document.querySelectorAll('[data-unmerge-group]').forEach(button => button.addEventListener('click', () => unmergeGroup(button.dataset.unmergeGroup)));
+  updateSelection();
+}
+function renderOperationCells(row) {
+  return `<td class="date">${esc(row.time)}</td>
+    <td class="item"><strong>${esc(row.product)}</strong><small>${esc(row.line)}</small></td>
+    <td>${esc(row.batch)}</td><td class="qty ${row.change.startsWith('-')?'negative':''}">${esc(row.change)}</td>
+    <td><span class="type ${row.type==='ПРИХОД'?'income':''}">${esc(row.type)}</span></td>`;
+}
+function renderOperation(row) {
+  return `<tr><td class="check-cell"><input class="row-check" type="checkbox" value="${row.id}" aria-label="Выбрать строку ${row.id}"></td>
+    ${renderOperationCells(row)}<td class="note-cell">${row.note ? renderNote(row.note) : '<span class="note-empty">—</span>'}</td></tr>`;
+}
+function updateSelection() {
+  const selected = selectedIds();
+  $('selection-bar').classList.toggle('visible',selected.length>0);
+  $('selection-count').textContent=`Выбрано: ${selected.length}`;
+  const checks=[...document.querySelectorAll('.row-check')];
+  $('select-all').checked=checks.length>0&&checks.every(input=>input.checked);
+  const selectedRows=rows.filter(row=>selected.includes(row.id));
+  const canEdit=selectedRows.length>0&&selectedRows.every(row=>row.note?.groupId)&&new Set(selectedRows.map(row=>row.note.groupId)).size===1;
+  const hasMerged=selectedRows.some(row=>row.note?.groupId);
+  $('merge-button').textContent=canEdit?'Изменить примечание':'Объединить примечание';
+  $('merge-button').disabled=selected.length<2&&!canEdit;
+  $('unmerge-button').disabled=!hasMerged;
+}
+function toast(message) {
+  $('toast').textContent=message;
+  $('toast').classList.add('visible');
+  setTimeout(()=>$('toast').classList.remove('visible'),2400);
+}
+function openDialog(groupId=null) {
+  if($('note-dialog').dataset.closing==='true')return;
+  const selected=selectedIds();
+  const note=groupId
+    ? rows.find(row=>row.note?.groupId===groupId)?.note
+    : rows.find(row=>selected.includes(row.id)&&row.note?.groupId)?.note;
+  $('note-code').value=note?.code||'';
+  $('note-url').value=note?.url||'';
+  $('note-text').value=note?.text||'';
+  $('note-dialog').dataset.editGroup=groupId||'';
+  $('note-error').style.display='none';
+  $('note-error').textContent='';
+  updatePreview();
+  delete $('note-dialog').dataset.closing;
+  $('note-dialog').hidden=false;
+  $('note-code').focus();
+}
+function closeNoteDialog(event) {
+  if(event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const dialog=$('note-dialog');
+  if(dialog.hidden||dialog.dataset.closing==='true')return;
+  dialog.dataset.closing='true';
+  $('cancel-dialog').disabled=true;
+  $('confirm-merge').disabled=true;
+  setTimeout(()=>{
+    dialog.hidden=true;
+    delete dialog.dataset.closing;
+    $('cancel-dialog').disabled=false;
+    $('confirm-merge').disabled=false;
+  },150);
+}
+function updatePreview() {
+  $('preview-code').textContent=$('note-code').value||'Общее примечание';
+  $('preview-body').textContent=$('note-text').value||$('note-url').value||'Одна ячейка примечания для всех выбранных операций.';
+}
+function unmergeGroup(groupId) {
+  rows.forEach(row=>{if(row.note?.groupId===groupId)delete row.note;});
+  render();
+  toast('Общее примечание разделено на отдельные строки.');
+}
+document.addEventListener('change',event=>{
+  if(event.target.matches('.row-check'))updateSelection();
+});
+$('select-all').addEventListener('change',event=>{
+  document.querySelectorAll('.row-check').forEach(input=>{input.checked=event.target.checked;});
+  updateSelection();
+});
+$('merge-button').addEventListener('click',()=>openDialog());
+$('unmerge-button').addEventListener('click',()=>{
+  const groups=new Set(rows.filter(row=>selectedIds().includes(row.id)&&row.note?.groupId).map(row=>row.note.groupId));
+  groups.forEach(unmergeGroup);
+});
+['note-code','note-url','note-text'].forEach(id=>$(id).addEventListener('input',updatePreview));
+$('note-dialog').addEventListener('click',event=>{
+  if(event.target===$('note-dialog'))closeNoteDialog();
+});
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&!$('note-dialog').hidden)closeNoteDialog();
+});
+function mergeSelectedNotes(event) {
+  if(event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const selected=selectedIds();
+  if(selected.length<2&&!$('note-dialog').dataset.editGroup) {
+    $('note-error').textContent='Выберите минимум две строки.';
+    $('note-error').style.display='block';
+    return;
+  }
+  const groupId=$('note-dialog').dataset.editGroup||`note-${Date.now()}`;
+  const code=$('note-code').value.trim();
+  const url=$('note-url').value.trim();
+  const text=$('note-text').value.trim();
+  if(url) {
+    try {
+      const parsed=new URL(url);
+      if(!['http:','https:'].includes(parsed.protocol))throw new Error('Unsupported protocol');
+    } catch {
+      $('note-error').textContent='Введите корректную ссылку, начинающуюся с http:// или https://.';
+      $('note-error').style.display='block';
+      return;
+    }
+  }
+  if(!code&&!url&&!text) {
+    $('note-error').textContent='Добавьте код, ссылку или текст примечания.';
+    $('note-error').style.display='block';
+    return;
+  }
+  const note={groupId,code,url,text};
+  const selectedRows=rows.filter(row=>selected.includes(row.id));
+  const existingGroupIds=new Set(selectedRows.map(row=>row.note?.groupId).filter(Boolean));
+  rows.forEach(row=>{if(existingGroupIds.has(row.note?.groupId))delete row.note;});
+  const members=selectedRows.length?selectedRows:rows.filter(row=>row.note?.groupId===groupId);
+  note.count=members.length;
+  members.forEach(row=>row.note=structuredClone(note));
+  render();
+  closeNoteDialog(event);
+  toast(`Общее примечание применено к ${members.length} строкам.`);
+}
+$('reset-demo').addEventListener('click',()=>{
+  rows=structuredClone(initialRows);
+  render();
+  toast('Пример сброшен.');
+});
+render();
+</script>
+</body>
+</html>
