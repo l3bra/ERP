@@ -8,6 +8,11 @@ backend/moysklad_mappings.json.tmp
 *.sqlite3
 *.xlsx
 
+# Frontend build and dependencies (Vue 3 + Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/index-legacy.html
+
 # Virtual environments, Python caches, and local secrets
 backend/venv/
 .venv/
@@ -18,3 +23,5 @@ __pycache__/
 
 # Local meme image (not required by the app)
 /kazino.jpg
+/.claude
+/temp
