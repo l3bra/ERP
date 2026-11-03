@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUpdated } from 'vue'
+import { ref, watch, onMounted, onUpdated, nextTick } from 'vue'
 import { api } from '../api.js'
 import {
   currentItems, lines, productColors, savedStyles, filterQuery,
@@ -13,6 +13,14 @@ const tableEl = ref(null)
 function enhance() { if (tableEl.value) enhanceTables(tableEl.value, savedStyles.value) }
 onMounted(enhance)
 onUpdated(enhance)
+
+// Прежний интерфейс перерисовывал таблицу при каждой перезагрузке данных —
+// неотправленные значения в полях «Расход»/«Приход» при этом очищались.
+watch(currentItems, async () => {
+  await nextTick()
+  document.querySelectorAll('#items-table input[id^="c"], #items-table input[id^="r"]')
+    .forEach(input => { input.value = '' })
+})
 
 function visible(it) {
   const q = filterQuery.value.toLowerCase()

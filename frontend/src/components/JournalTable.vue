@@ -86,7 +86,15 @@ const emptyText = computed(() => currentLogs.value.length
   : 'В этом месяце записей нет')
 
 // ================= Выбор строк =================
-watch([currentLogs, journalQuery], async () => {
+// Прежний интерфейс перерисовывал таблицу при каждой перезагрузке журнала,
+// сбрасывая выбор строк. Повторяем это поведение.
+watch(currentLogs, async () => {
+  await nextTick()
+  document.querySelectorAll('#logs-table [data-log-select]').forEach(input => { input.checked = false })
+  updateSelection()
+})
+
+watch(journalQuery, async () => {
   await nextTick()
   updateSelection()
 })

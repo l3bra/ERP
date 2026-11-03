@@ -56,14 +56,38 @@ async function addProductColor() {
 }
 
 async function saveProductColor(color) {
+  const preview = previewOf(color)
   try {
     const r = await api('/product-colors/' + encodeURIComponent(color.name), 'PUT', {
-      rgb: color.rgb, opacity: Number(color.opacity),
+      rgb: preview.rgb, opacity: Number(preview.opacity),
     })
     productColors.value = productColors.value.map(c =>
       c.name === color.name ? {...c, rgb: r.rgb, opacity: r.opacity} : c)
   } catch {}
 }
+
+// Локальные превью редактируемых цветов: при вводе меняется только предпросмотр
+// в редакторе (как в прежнем интерфейсе), общее состояние — только после
+// успешного сохранения. При перезагрузке справочника превью сбрасываются.
+const colorPreviews = reactive({})
+
+function previewOf(color) {
+  return colorPreviews[color.name] || {
+    rgb: color.rgb || '#ff6384',
+    opacity: Number(color.opacity ?? 0.36),
+  }
+}
+
+function onColorInput(color, field, event) {
+  if (!colorPreviews[color.name]) {
+    colorPreviews[color.name] = {rgb: color.rgb || '#ff6384', opacity: Number(color.opacity ?? 0.36)}
+  }
+  colorPreviews[color.name][field] = event.target.value
+}
+
+watch(productColors, () => {
+  for (const key of Object.keys(colorPreviews)) delete colorPreviews[key]
+})
 
 async function deleteProductColor(name) {
   try {
@@ -171,13 +195,13 @@ async function saveLineProductColors() {
     <div id="product-color-settings">
       <div class="product-color-editor" v-for="color in productColors" :key="color.name">
         <span>{{ color.name }}</span>
-        <span class="color-preview" :style="{background: colorCss(color)}" aria-hidden="true"></span>
-        <label>RGB <input type="color" :value="color.rgb || '#ff6384'" :aria-label="'RGB цвета ' + color.name"
-          @input="color.rgb = $event.target.value" @change="saveProductColor(color)"></label>
+        <span class="color-preview" :style="{background: colorCss(previewOf(color))}" aria-hidden="true"></span>
+        <label>RGB <input type="color" :value="previewOf(color).rgb" :aria-label="'RGB цвета ' + color.name"
+          @input="onColorInput(color, 'rgb', $event)" @change="saveProductColor(color)"></label>
         <label>Прозрачность <input type="range" min="0" max="1" step="0.01"
-          :value="Number(color.opacity ?? 0.36)" :aria-label="'Прозрачность цвета ' + color.name"
-          @input="color.opacity = $event.target.value" @change="saveProductColor(color)"></label>
-        <output>{{ Math.round(Number(color.opacity ?? 0.36) * 100) }}%</output>
+          :value="previewOf(color).opacity" :aria-label="'Прозрачность цвета ' + color.name"
+          @input="onColorInput(color, 'opacity', $event)" @change="saveProductColor(color)"></label>
+        <output>{{ Math.round(Number(previewOf(color).opacity) * 100) }}%</output>
         <button type="button" :aria-label="'Удалить цвет ' + color.name"
           @click="deleteProductColor(color.name)">Удалить</button>
       </div>

@@ -242,7 +242,6 @@ export function openNoteGroupDialog(groupId = null) {
   noteGroupSaveLabel.value = groupId ? 'Сохранить' : 'Объединить'
   noteGroupError.value = ''
   noteGroupVisible.value = true
-  nextTick(() => document.getElementById('note-group-code')?.focus())
 }
 
 export function closeNoteGroupDialog() {

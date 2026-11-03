@@ -22,6 +22,7 @@ const storeSelectDisabled = computed(() =>
   !moyskladConfigured.value || moyskladStores.value.length === 0)
 
 const storePlaceholder = computed(() => {
+  if (!moyskladTokenStatus.value) return 'Сначала укажите токен'
   if (!moyskladConfigured.value) return 'Подключите токен, чтобы выбрать склад'
   return '— выберите склад —'
 })
@@ -82,14 +83,14 @@ async function doSaveSnapshot() {
     <label>Название из базы
       <select id="moysklad-local-name" :disabled="localSelectDisabled" :value="mappingLocalName"
         @change="mappingLocalName = $event.target.value">
-        <option v-if="!groups.length" value="">Загрузите остатки</option>
+        <option v-if="!moyskladComparison" value="">Загрузите остатки</option>
         <option v-for="g in groups" :key="g.name" :value="g.name">{{ g.name }}</option>
       </select>
     </label>
     <label>Товар из МойСклад
       <select id="moysklad-external-item" :disabled="externalSelectDisabled" :value="mappingExternalHref"
         @change="mappingExternalHref = $event.target.value">
-        <option value="">— не сопоставлен —</option>
+        <option value="">{{ moyskladComparison ? '— не сопоставлен —' : 'Загрузите остатки' }}</option>
         <option v-for="item in mappingExternalOptions" :key="item.href" :value="item.href"
           :disabled="item.disabled">{{ item.label }}</option>
         <option v-if="mappingExternalMissing" :value="mappingExternalHref">Сопоставленный товар не загружен</option>
