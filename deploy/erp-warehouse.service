@@ -6,7 +6,10 @@
 #   4) sudo systemctl daemon-reload
 #   5) sudo systemctl enable --now erp-warehouse
 #
-# После этого API доступен на http://127.0.0.1:8000/ (браузер не открывается).
+# После этого API доступен из локальной сети на http://<IP-сервера>:8000/
+# (start_server.sh слушает 0.0.0.0:8000). При включённом ufw откройте порт:
+#   sudo ufw allow 8000/tcp
+# Браузер при этом не открывается.
 
 [Unit]
 Description=ERP Warehouse API (FastAPI + SQLite)
